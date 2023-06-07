@@ -5,9 +5,11 @@ import {
 
 import * as addon from './addon';
 import {LAYOUT, LE, Lookup} from './data';
-import {decodeIdentRaw, decodeStatus, decodeTypes} from './protocol';
+import {Log, decodeIdentRaw, decodeStatus, decodeTypes} from './protocol';
 
-import {Choice, CreateOptions, Data, Gen1, Player, RestoreOptions, Result, Slot} from '.';
+import {
+  Choice, CreateOptions, Data, Gen1, Player, Rational, RestoreOptions, Result, Slot,
+} from '.';
 
 const SIZES = LAYOUT[0].sizes;
 const OFFSETS = LAYOUT[0].offsets;
@@ -23,39 +25,55 @@ for (const v in OFFSETS.Volatiles) {
 }
 
 export class Battle implements Gen1.Battle {
-  readonly config: CreateOptions | RestoreOptions;
-  readonly log?: DataView;
+  readonly options: Options;
 
   private readonly lookup: Lookup;
   private readonly data: DataView;
-  private readonly options: ArrayBuffer;
-  private readonly buf: ArrayBuffer | undefined;
-
+  private readonly buf: ArrayBuffer;
   private readonly cache: [Side?, Side?];
 
-  constructor(lookup: Lookup, data: DataView, config: CreateOptions | RestoreOptions) {
-    this.config = config;
+  constructor(
+    gen: Generation,
+    lookup: Lookup,
+    data: DataView,
+    options: CreateOptions | RestoreOptions,
+  ) {
+    this.options = new Options(gen, lookup, options);
 
     this.lookup = lookup;
     this.data = data;
-    this.options = new ArrayBuffer(addon.size(0, 'choices'));
-    this.buf = config.log ? new ArrayBuffer(addon.size(0, 'log')) : undefined;
-    this.log = config.log ? new DataView(this.buf!) : undefined;
 
+    this.buf = new ArrayBuffer(addon.size(0, 'choices'));
     this.cache = [undefined, undefined];
   }
 
+  get log(): Log {
+    return this.options.log;
+  }
+
+  get chance(): Chance {
+    return this.options.chance;
+  }
+
+  get calc(): Calc {
+    return this.options.calc;
+  }
+
   update(c1?: Choice, c2?: Choice): Result {
-    return addon.update(0, !!this.config.showdown, this.data.buffer, c1, c2, this.buf);
+    return addon.update(
+      0, !!this.options.showdown, this.data.buffer, c1, c2, this.options.data.buffer
+    );
   }
 
   choices(id: Player, result: Result): Choice[] {
-    return addon.choices(0, !!this.config.showdown, this.data.buffer, id, result[id], this.options);
+    return addon.choices(
+      0, !!this.options.showdown, this.data.buffer, id, result[id], this.buf
+    );
   }
 
   choose(id: Player, result: Result, fn: (n: number) => number): Choice {
     return addon.choose(
-      0, !!this.config.showdown, this.data.buffer, id, result[id], this.options, fn
+      0, !!this.options.showdown, this.data.buffer, id, result[id], this.buf, fn
     );
   }
 
@@ -87,10 +105,10 @@ export class Battle implements Gen1.Battle {
   }
 
   get prng(): readonly number[] {
-    const offset = OFFSETS.Battle.last_moves + (this.config.showdown ? 4 : 1);
+    const offset = OFFSETS.Battle.last_moves + (this.options.showdown ? 4 : 1);
     // Pokémon Showdown's PRNGSeed is always big-endian
     const seed: number[] = [0, 0, 0, 0];
-    if (this.config.showdown) {
+    if (this.options.showdown) {
       seed[LE ? 3 : 0] = this.data.getUint16(offset, LE);
       seed[LE ? 2 : 1] = this.data.getUint16(offset + 2, LE);
       seed[LE ? 1 : 2] = this.data.getUint16(offset + 4, LE);
@@ -127,7 +145,7 @@ export class Battle implements Gen1.Battle {
     Side.init(gen, lookup, options.p1.team, data, OFFSETS.Battle.p1);
     Side.init(gen, lookup, options.p2.team, data, OFFSETS.Battle.p2);
     encodePRNG(data, options.seed);
-    return new Battle(lookup, data, options);
+    return new Battle(gen, lookup, data, options);
   }
 
   static restore(
@@ -161,7 +179,7 @@ export class Battle implements Gen1.Battle {
       data.setUint8(OFFSETS.Battle.last_moves, (lastMoves[1] << 4) | lastMoves[0]);
     }
     encodePRNG(data, battle.prng);
-    return new Battle(lookup, data, options);
+    return new Battle(gen, lookup, data, options);
   }
 }
 
@@ -230,7 +248,7 @@ export class Side implements Gen1.Side {
 
   get lastMoveIndex(): 1 | 2 | 3 | 4 | undefined {
     let m: number;
-    if (this.battle.config.showdown) {
+    if (this.battle.options.showdown) {
       const off = this.id === 'p1' ? 0 : 2;
       m = this.data.getUint8(OFFSETS.Battle.last_moves + off);
     } else {
@@ -242,7 +260,7 @@ export class Side implements Gen1.Side {
 
   get lastMoveCounterable(): boolean {
     let m: number;
-    if (this.battle.config.showdown) {
+    if (this.battle.options.showdown) {
       const off = this.id === 'p1' ? 1 : 3;
       m = this.data.getUint8(OFFSETS.Battle.last_moves + off);
     } else {
@@ -743,6 +761,63 @@ export class StoredPokemon {
       stats: this.stats,
       moves: Array.from(this.moves),
     };
+  }
+}
+
+export class Options {
+  showdown: boolean;
+  log: Log;
+  chance: Chance;
+  calc: Calc;
+
+  readonly data: DataView;
+
+  constructor(gen: Generation, lookup: Lookup, options: CreateOptions | RestoreOptions) {
+    const {data, log, chance, calc} = addons.options(0, options);
+
+    this.showdown = !!options.showdown;
+    this.data = data;
+    this.log = new Log(gen, options.log ? options : undefined!, log, lookup);
+    this.chance = new Chance(lookup, chance);
+    this.calc = new Calc(lookup, calc);
+  }
+}
+
+export class Chance implements Gen1.Chance {
+  probability: Rational;
+  actions: Actions;
+
+  constructor(lookup: Lookup, data: {rational: DataView; actions: DataView}) {
+    this.probability = new Rational(data.rational);
+    this.actions = new Actions(lookup, data.actions);
+  }
+}
+
+export class Actions {
+  private readonly lookup: Lookup;
+  private readonly data: DataView;
+
+  constructor(lookup: Lookup, data: DataView) {
+    this.lookup = lookup;
+    this.data = data;
+  }
+}
+
+export class Calc implements Gen1.Calc {
+  private readonly summaries: Summaries;
+  private readonly overrides: Actions;
+
+  constructor(lookup: Lookup, data: {summaries: DataView; overrides: DataView}) {
+    this.summaries = new Summaries(data.summaries);
+    this.overrides = new Actions(lookup, data.overrides);
+  }
+}
+
+export class Summaries {
+  private readonly data: DataView;
+
+  constructor(data: DataView) {
+    this.data = data;
   }
 }
 

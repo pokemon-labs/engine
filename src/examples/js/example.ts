@@ -69,20 +69,13 @@ const P2 = Team.unpack(
 // configuration we will need to change this initialization option as well.
 const gens = new Generations(Dex);
 const gen = gens.get(1);
-const options = {
+const battle = Battle.create(gen, {
   p1: {name: 'Player A', team: P1},
   p2: {name: 'Player B', team: P2},
   seed: [1, 2, 3, 4],
   showdown: true,
   log: true,
-};
-const battle = Battle.create(gen, options);
-const log = new Log(gen, Lookup.get(gen), options);
-const display = () => {
-  for (const line of log.parse(battle.log!)) {
-    console.log(line);
-  }
-};
+});
 
 const random = new Random();
 const choose = random.next.bind(random);
@@ -95,7 +88,7 @@ while (!(result = battle.update(c1, c2)).type) {
   // If -Dlog is enabled we can parse and output the resulting logs since we
   // initialized the battle to support logging (both `-Dlog` *and* `log: true`
   // are required for logging)
-  display();
+  for (const line of battle.log) console.log(line);
   // Technically due to Generation I's Transform + Mirror Move/Metronome PP
   // error if the battle contains Pokémon with a combination of Transform,
   // Mirror Move/Metronome, and Disable its possible that there are no available
@@ -110,7 +103,7 @@ while (!(result = battle.update(c1, c2)).type) {
   c2 = battle.choose('p2', result, choose);
 }
 // Remember to display any logs that were produced during the last update
-display();
+for (const line of battle.log) console.log(line);
 
 // The result is from the perspective of P1
 const msg = {

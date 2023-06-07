@@ -3,8 +3,9 @@ import {
 } from '@pkmn/data';
 
 import * as addon from './addon';
-import {Lookup} from './data';
+import {LE, Lookup} from './data';
 import * as gen1 from './gen1';
+import {Log} from './protocol';
 
 /** Representation of one of a battle's participants. */
 export type Player = 'p1' | 'p2';
@@ -21,17 +22,11 @@ export type Pokemon = Gen1.Pokemon;
 export type MoveSlot = Gen1.MoveSlot;
 
 /** Generic API supported by all Generations of Battle. */
-export interface API {
-  /**
-   * The most recent buffer of binary protocol message log data filled by
-   * `update` if logging is enabled, otherwise undefined. Meant to be parsed by
-   * `Log`.
-   */
-  log?: DataView;
-  /**
-  * Returns the result of applying Player 1's choice `c1` and Player 2's choice
-  * `c2` to the battle.
-  */
+export interface API<Chance, Calc> {
+  log: Log;
+  chance: Chance;
+  calc: Calc;
+
   update(c1: Choice, c2: Choice): Result;
   /**
    * Returns all possible choices for the `player` given the previous `result`
@@ -62,12 +57,12 @@ export interface API {
 }
 
 /** Helper type removing API methods from a data type `T`. */
-export type Data<T extends API> = Omit<T, keyof API>;
+export type Data<T extends API<unknown, unknown>> = Omit<T, keyof API<unknown, unknown>>;
 
 /** Type definitions for Generation I Pokémon data relevant in a battle. */
 export namespace Gen1 {
   /** Representation of the entire state of a Generation I Pokémon battle. */
-  export interface Battle extends API {
+  export interface Battle extends API<Chance, Calc> {
     /** The sides involved in the battle. */
     sides: Iterable<Side>;
     /** The battle's current turn number. */
@@ -244,6 +239,14 @@ export namespace Gen1 {
       slot: number;
     };
   }
+
+  export interface Chance {
+    // TODO
+  }
+
+  export interface Calc {
+    // TODO
+  }
 }
 
 /** Options for creating a battle via Battle.create. */
@@ -258,6 +261,9 @@ export type CreateOptions = {
    * that the engine be built in a specific compatibility mode).
    */
   showdown?: boolean;
+  // TODO
+  // chance?: boolean;
+  // calc?: boolean;
 } & ({
   /** Player 1's options. */
   p1: PlayerOptions;
@@ -284,6 +290,10 @@ export type CreateOptions = {
 
 /** Options for restoring a battle via Battle.restore. */
 export type RestoreOptions = {
+  // TODO
+  // chance?: boolean;
+  // calc?: boolean;
+} &({
   /** Player 1's options. */
   p1: PlayerOptions;
   /** Player 2's options. */
@@ -311,7 +321,7 @@ export type RestoreOptions = {
    * effect.
    */
   log?: false;
-};
+});
 
 /** Options about a particular player. */
 export interface PlayerOptions {
@@ -452,6 +462,23 @@ export class Result {
       p1: Choice.Types[(byte >> 4) & 0b11],
       p2: Choice.Types[byte >> 6],
     };
+  }
+}
+
+// FIXME update must proactively reduce() if options.chance is set and not chance.NULL
+export class Rational {
+  private readonly data: DataView;
+
+  constructor(data: DataView) {
+    this.data = data;
+  }
+
+  get p() {
+    return this.data.getFloat64(0, LE);
+  }
+
+  get q() {
+    return this.data.getFloat64(8, LE);
   }
 }
 

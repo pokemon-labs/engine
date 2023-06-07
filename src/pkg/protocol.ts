@@ -76,26 +76,30 @@ export interface PokemonInfo {
 export class Log {
   /** The generation this Log is able to parse. */
   readonly gen: Generation;
-  /** The lookup table used by the Log. */
-  readonly lookup: Lookup;
   /** The battle information required to parse the engine's binary protocol. */
   readonly info: Info;
+  /** The lookup table used by the Log. */
+  readonly lookup: Lookup;
 
-  constructor(gen: Generation, lookup: Lookup, info: Info) {
+  private readonly data: DataView;
+
+  constructor(gen: Generation, info: Info, data: DataView, lookup?: Lookup) {
     this.gen = gen;
-    this.lookup = lookup;
     this.info = info;
+    this.lookup = lookup ?? Lookup.get(gen);
+
+    this.data = data;
   }
 
   /**
    * Decode engine's binary protocol `data` and convert it to lines of Pokémon
    * Showdown's text protocol.
    */
-  *parse(data: DataView): Iterable<ParsedLine> {
+  *[Symbol.iterator](): Iterator<ParsedLine> {
     let lines: ParsedLine[] = [];
     let i = 0;
-    for (; i < data.byteLength;) {
-      const byte = data.getUint8(i++);
+    for (; i < this.data.byteLength;) {
+      const byte = this.data.getUint8(i++);
       if (!byte) {
         for (const line of lines) yield line;
         return i;
@@ -105,7 +109,7 @@ export class Log {
       } else if (byte === ArgType.LastStill) {
         (lines[0].kwArgs as Writeable<Protocol.BattleArgsKWArgs['|move|']>).still = true;
       } else {
-        const decoded = DECODERS[byte]?.apply(this, [i, data]);
+        const decoded = DECODERS[byte]?.apply(this, [i, this.data]);
         if (!decoded) throw new Error(`Expected arg at offset ${i} but found ${byte}`);
         i = decoded.offset;
         if (byte === ArgType.Move) {

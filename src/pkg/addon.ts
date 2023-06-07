@@ -57,10 +57,10 @@ export function update(
   battle: ArrayBuffer,
   c1?: Choice,
   c2?: Choice,
-  log?: ArrayBuffer,
+  options?: ArrayBuffer,
 ) {
   return Result.decode(ADDON![+showdown]!.bindings[index]
-    .update(battle, Choice.encode(c1), Choice.encode(c2), log));
+    .update(battle, Choice.encode(c1), Choice.encode(c2), options));
 }
 
 export function choices(
