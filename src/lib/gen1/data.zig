@@ -226,12 +226,34 @@ pub const MoveSlot = extern struct {
     }
 };
 
+/// TODO
+const From = enum(u4) {
+    None,
+    FireSpin,
+    Wrap,
+    Bind,
+    Clamp,
+    Fly,
+    Dig,
+    SkullBash,
+    SkyAttack,
+    SolarBeam,
+    RazorWind,
+    PetalDance,
+    Thrash,
+    Rage,
+    MirrorMove,
+    Metronome,
+};
+
 /// Details required to detect desyncs based on the move last selected/executed by players.
 pub const MoveDetails = packed struct {
     /// The move slot index of the last move selected in the battle menu.
-    index: if (showdown) u8 else u4 = 0,
+    index: if (showdown) u8 else u3 = 0,
     /// Whether the last move executed was counterable.
-    counterable: if (showdown) u8 else u4 = 0,
+    counterable: if (showdown) u4 else u1 = 0,
+    /// TODO
+    from: From = .None,
 
     comptime {
         assert(@sizeOf(MoveDetails) == if (showdown) 2 else 1);

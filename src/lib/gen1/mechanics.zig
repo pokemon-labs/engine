@@ -71,11 +71,8 @@ pub fn update(battle: anytype, c1: Choice, c2: Choice, options: anytype) !Result
 
     var s1 = false;
     var s2 = false;
-    var f1: ?Move = null;
-    var f2: ?Move = null;
-
-    if (selectMove(battle, .P1, c1, c2, &s1, &f1)) |r| return r;
-    if (selectMove(battle, .P2, c2, c1, &s2, &f2)) |r| return r;
+    if (selectMove(battle, .P1, c1, c2, &s1)) |r| return r;
+    if (selectMove(battle, .P2, c2, c1, &s2)) |r| return r;
 
     var p1 = battle.side(.P1);
     var p2 = battle.side(.P2);
@@ -84,9 +81,9 @@ pub fn update(battle: anytype, c1: Choice, c2: Choice, options: anytype) !Result
     var r2 = showdown and p2.active.volatiles.Binding and c1.type == .Switch;
 
     if (try turnOrder(battle, c1, c2, options) == .P1) {
-        if (try doTurn(battle, .P1, c1, r1, s1, f1, .P2, c2, r2, s2, f2, options)) |r| return r;
+        if (try doTurn(battle, .P1, c1, r1, s1, .P2, c2, r2, s2, options)) |r| return r;
     } else {
-        if (try doTurn(battle, .P2, c2, r2, s2, f2, .P1, c1, r1, s1, f1, options)) |r| return r;
+        if (try doTurn(battle, .P2, c2, r2, s2, .P1, c1, r1, s1, options)) |r| return r;
     }
 
     if (p1.active.volatiles.attacks == 0) p1.active.volatiles.Binding = false;
@@ -124,7 +121,6 @@ fn selectMove(
     choice: Choice,
     foe_choice: Choice,
     skip_turn: *bool,
-    from: *?Move,
 ) ?Result {
     if (choice.type == .Pass) return null;
 
@@ -141,7 +137,6 @@ fn selectMove(
         return null;
     }
     if (volatiles.Rage) {
-        from.* = side.last_used_move;
         if (showdown) {
             if (battle.foe(player).active.volatiles.Binding) skip_turn.* = true;
             saveMove(battle, player, null);
@@ -151,7 +146,6 @@ fn selectMove(
     // Pokémon Showdown removes Flinch at the end-of-turn in its residual handler
     if (!showdown) volatiles.Flinch = false;
     if (volatiles.Thrashing or volatiles.Charging) {
-        from.* = side.last_selected_move;
         if (showdown) {
             if (battle.foe(player).active.volatiles.Binding) skip_turn.* = true;
             saveMove(battle, player, null);
@@ -172,9 +166,7 @@ fn selectMove(
         return null;
     }
     if (volatiles.Binding) {
-        from.* = side.last_used_move;
         if (showdown) {
-            if (foe_choice.type == .Switch) from.* = null;
             // Pokémon Showdown overwrites Mirror Move with whatever was selected - really this
             // should set side.last_selected_move = last.id to reuse Mirror Move and fail in order
             // to satisfy the conditions of the Desync Clause Mod. However, because Binding is still
@@ -343,12 +335,10 @@ fn doTurn(
     player_choice: Choice,
     player_rewrap: bool,
     player_skip: bool,
-    player_from: ?Move,
     foe_player: Player,
     foe_choice: Choice,
     foe_rewrap: bool,
     foe_skip: bool,
-    foe_from: ?Move,
     options: anytype,
 ) !?Result {
     assert(player_choice.type != .Pass);
@@ -361,7 +351,6 @@ fn doTurn(
         player_choice,
         player_rewrap,
         player_skip,
-        player_from,
         &residual,
         options,
     )) |r| return r;
@@ -384,7 +373,6 @@ fn doTurn(
         foe_choice,
         foe_rewrap,
         foe_skip,
-        foe_from,
         &residual,
         options,
     )) |r| return r;
@@ -412,7 +400,6 @@ fn executeMove(
     choice: Choice,
     rewrap: bool,
     skip: bool,
-    from: ?Move,
     residual: *bool,
     options: anytype,
 ) !?Result {
@@ -470,7 +457,7 @@ fn executeMove(
 
     var skip_can = false;
     var skip_pp = false;
-    switch (try beforeMove(battle, player, skip, from, residual, options)) {
+    switch (try beforeMove(battle, player, skip, residual, options)) {
         .done => return null,
         .skip_can => skip_can = true,
         .skip_pp => skip_pp = true,
@@ -478,7 +465,7 @@ fn executeMove(
         .err => return @as(?Result, Result.Error),
     }
 
-    if (!skip_can and !try canMove(battle, player, mslot, auto, skip_pp, from, residual, options)) {
+    if (!skip_can and !try canMove(battle, player, mslot, auto, skip_pp, residual, options)) {
         return null;
     }
 
@@ -491,7 +478,6 @@ fn beforeMove(
     battle: anytype,
     player: Player,
     skip: bool,
-    from: ?Move,
     residual: *bool,
     options: anytype,
 ) !BeforeMove {
@@ -710,7 +696,7 @@ fn beforeMove(
         if (!showdown and handleThrashing(battle, active, player, options)) {
             try log.start(battle.active(player), .ConfusionSilent);
         }
-        try log.move(ident, side.last_selected_move, battle.active(player.foe()), from);
+        try log.move(ident, side.last_selected_move, battle.active(player.foe()), battle.lastMove());
         if (showdown) {
             // This shouldn't actually set last_used_move, but Pokémon Showdown sets last
             // used in useMove and doesn't have the notion of skipping canMove semantics
@@ -757,7 +743,6 @@ fn canMove(
     mslot: u4,
     auto: bool,
     skip_pp: bool,
-    from: ?Move,
     residual: *bool,
     options: anytype,
 ) !bool {
@@ -1336,6 +1321,7 @@ fn mirrorMove(
     var side = battle.side(player);
     const foe = battle.foe(player);
 
+    battle.lastMove(player).from = .MirrorMove;
     side.last_selected_move = foe.last_used_move;
 
     if (foe.last_used_move == .None or foe.last_used_move == .MirrorMove) {
@@ -1362,6 +1348,7 @@ fn metronome(
 ) !?Result {
     var side = battle.side(player);
 
+    battle.lastMove(player).from = .Metronome;
     side.last_selected_move = try Rolls.metronome(battle, player, options);
     incrementPP(side, mslot);
 
@@ -1844,6 +1831,7 @@ pub const Effects = struct {
         volatiles.Charging = true;
         const move = side.last_selected_move;
         if (move == .Fly or move == .Dig) volatiles.Invulnerable = true;
+            battle.lastMove(player).from = TODO;
         try options.log.laststill();
         try options.log.prepare(battle.active(player), move);
     }
@@ -2294,6 +2282,7 @@ pub const Effects = struct {
         var volatiles = &battle.side(player).active.volatiles;
         assert(!volatiles.Bide);
         volatiles.Rage = true;
+        battle.lastMove(player).from = .Rage;
     }
 
     fn recoil(battle: anytype, player: Player, residual: *bool, options: anytype) !void {
@@ -2408,6 +2397,8 @@ pub const Effects = struct {
         assert(!volatiles.Thrashing);
         assert(!volatiles.Bide);
 
+        battle.lastMove(player).from = if (side.last_selected_move == .Thras) .Thrash else .MirrorMove;
+
         volatiles.Thrashing = true;
         volatiles.attacks = Rolls.attackingDuration(battle, player, options);
     }
@@ -2446,6 +2437,7 @@ pub const Effects = struct {
         var foe = battle.foe(player);
 
         if (side.active.volatiles.Binding) return;
+        battle.lastMove(player).from = TODO;
         side.active.volatiles.Binding = true;
         // GLITCH: Hyper Beam automatic selection glitch if Recharging gets cleared on miss
         // (Pokémon Showdown unitentionally patches this glitch, preventing automatic selection)
