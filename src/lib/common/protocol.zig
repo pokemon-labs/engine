@@ -1834,3 +1834,8 @@ test "|-weather|" {
     try expectLog2(&.{ N(ArgType.Weather), N(W2.None), N(Weather.None) }, buf[0..3]);
     stream.reset();
 }
+
+comptime {
+    // FIXME WIP
+    _ = @import("proto.zig");
+}
