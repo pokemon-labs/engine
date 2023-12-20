@@ -837,7 +837,7 @@ fn doMove(
     auto: bool,
     residual: *bool,
     options: anytype,
-) !?Result {
+) anyerror!?Result {
     var log = options.log;
     var side = battle.side(player);
     const foe = battle.foe(player);
@@ -1358,7 +1358,7 @@ fn mirrorMove(
     if (!try canMove(battle, player, mslot, auto, false, .MirrorMove, residual, options)) {
         return null;
     }
-    return doMove(battle, player, mslot, rewrap, auto, residual, options);
+    return try @call(.always_tail, doMove, .{battle, player, mslot, rewrap, auto, residual, options});
 }
 
 fn metronome(
@@ -1379,6 +1379,7 @@ fn metronome(
         return null;
     }
     return doMove(battle, player, mslot, rewrap, auto, residual, options);
+    // return try @call(.always_tail, doMove, .{battle, player, mslot, rewrap, auto, residual, options});
 }
 
 fn checkHit(battle: anytype, player: Player, move: Move.Data, options: anytype) !bool {
