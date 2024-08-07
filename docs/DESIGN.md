@@ -8,10 +8,35 @@
 >
 > This document exists to provide a high-level overview of the design of the engine in general.
 
-The pkmn engine is first and foremost designed for performance. The engine's most impactful design
-principle is that of **"no compromises"** when it comes to performance -
-ergonomics/simplicity/convenience are always trumped by performance, and the engine will never
-trade off performance for any other feature. This principle leads to the following:
+The pkmn engine is first and foremost designed around performance. The project takes a **"no
+compromises"** stance in this regard - ergonomics/simplicity/convenience are always trumped by
+performance, and the engine will never trade off performance for any other feature.
+
+https://pkmn.cc/@pkmn/
+performance *BUT* accuracy/fidely + generally useful.
+
+like all pkmn projects, engine is partly an "experimental testbed for exploratory research" to help push forward the state of Pokémon battle engines more broadly (aed3, pmariglia), but is a fully formed project that is intended for real world use.
+
+
+- focused around traditional `update` model as opposed to `all-transitions`/`generate-instructions` for commonly required for AI usecasse etc
+  - close adherence to cart/PS = easier to acheive fidelity, can also then intrgration test against reference implementations
+
+- performance of `update` most important which is most relevant for a specific type of MCTS AI, though also because a cheap `update` can be also used as the foundatio of more advanced features
+
+- general purpose
+  - bindings to multiple languages
+  - can use in the browser(!)
+  - can compose well with other pkmn projects (uber binary)
+  - can use for a simulator (`-Dlog`)
+  - can use for a damage calc or perfect information solver (`-Dchance`/`-Dcalc`)
+  - can use for AI (`diff`/`patch`, `Rolls`, `transitions`)
+
+TODO separate chance doc?
+
+
+---
+
+This stance leads to the following:
 
 - the engine is much **more targeted in scope** than either the original game cartridge (which
   includes code for an entire RPG) or Pokémon Showdown (which supports a fully featured simulator in
@@ -43,6 +68,7 @@ trade off performance for any other feature. This principle leads to the followi
   engine's **protocol and API changes depending on the system**, as all integers are be written
   using **native-endianness** as that's guaranteed to be the fastest to read and write on any
   particular system.
+  - TODO protocol avoids any redundant information that can't be recomputed later 
 - **no strings** are used in the engine - strings are to be dealt with by higher levels (e.g. in
   driver code) and as a result the engine just has to deal with small and efficient primitive data
   types. All identifiers can be represented as small `enum` values which can be used to index
