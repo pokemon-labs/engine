@@ -571,72 +571,129 @@ pub fn Chance(comptime Rational: type) type {
             if (!enabled) return;
 
             var a = self.actions.get(player);
-            var d = self.durations.get(player);
-
             assert(a.sleep == .None or a.sleep == .started);
-
             a.sleep = obs;
-            d.sleeps[0] = update(d.sleeps[0], obs);
+
+            var d = self.durations.get(player);
+            const n = d.sleeps[0];
+
+            if (obs == .None) {
+                d.sleeps[0] = 0;
+            } else if (obs == .ended) {
+                assert(n >= 1 and n <= 7);
+                if (n != 7) try self.probability.update(1, 8 - @as(u4, n));
+                d.sleeps[0] = 0;
+            } else {
+                assert(obs == .continuing);
+                assert(n >= 1 and n < 7);
+                try self.probability.update(8 - @as(u4, n) - 1, 8 - @as(u4, n));
+                d.sleeps[0] += 1;
+            }
         }
 
         pub fn confusion(self: *Self, player: Player, obs: Optional(Confusion)) Error!void {
             if (!enabled) return;
 
             var a = self.actions.get(player);
-            var d = self.durations.get(player);
-
             assert(a.confusion == .None or a.confusion == .started);
-
             a.confusion = obs;
-            d.confusion = update(d.confusion, @enumFromInt(@intFromEnum(obs)));
+
+            var d = self.durations.get(player);
+            const n = d.confusion;
+
+            if (obs == .ended) {
+                assert(n >= 2 and n <= 5);
+                if (n != 5) try self.probability.update(1, 6 - @as(u4, n));
+                d.confusion = 0;
+            } else {
+                assert(obs == .continuing);
+                assert(n >= 1 and n < 5);
+                if (n > 1) try self.probability.update(6 - @as(u4, n) - 1, 6 - @as(u4, n));
+                d.confusion += 1;
+            }
         }
 
         pub fn disable(self: *Self, player: Player, obs: Optional(Observation)) Error!void {
             if (!enabled) return;
 
             var a = self.actions.get(player);
-            var d = self.durations.get(player);
-
             assert(a.disable == .None or a.disable == .started);
-
             a.disable = obs;
-            d.disable = update(d.disable, obs);
+
+            var d = self.durations.get(player);
+            const n = d.disable;
+
+            if (obs == .ended) {
+                assert(n >= 1 and n <= 8);
+                if (n != 8) try self.probability.update(1, 9 - @as(u4, n));
+                d.disable = 0;
+            } else {
+                assert(obs == .continuing);
+                assert(n >= 1 and n < 8);
+                try self.probability.update(9 - @as(u4, n) - 1, 9 - @as(u4, n));
+                d.disable += 1;
+            }
         }
 
         pub fn bide(self: *Self, player: Player, obs: Optional(Observation)) Error!void {
-            if (!enabled) return;
-
-            var a = self.actions.get(player);
-            var d = self.durations.get(player);
-
-            assert(a.bide == .None or a.bide == .started);
-
-            a.bide = obs;
-            d.bide = update(d.bide, obs);
+            return self.attacking(.bide, player, obs);
         }
 
         pub fn thrashing(self: *Self, player: Player, obs: Optional(Observation)) Error!void {
+            return self.attacking(.thrashing, player, obs);
+        }
+
+        fn attacking(
+            self: *Self,
+            comptime field: Action.Field,
+            player: Player,
+            obs: Optional(Observation),
+        ) Error!void {
             if (!enabled) return;
 
+            const f = @tagName(field);
             var a = self.actions.get(player);
+            assert(@field(a, f) == .None or @field(a, f) == .started);
+            @field(a, f) = obs;
+
             var d = self.durations.get(player);
-
-            assert(a.thrashing == .None or a.thrashing == .started);
-
-            a.thrashing = obs;
-            d.thrashing = update(d.thrashing, obs);
+            const n = @field(d, f);
+            if (obs == .ended) {
+                assert(n >= 2 and n <= 3);
+                if (n != 3) try self.probability.update(1, 4 - @as(u4, n));
+                @field(d, f) = 0;
+            } else {
+                assert(obs == .continuing);
+                assert(n >= 1 and n < 3);
+                if (n > 1) try self.probability.update(4 - @as(u4, n) - 1, 4 - @as(u4, n));
+                @field(d, f) += 1;
+            }
         }
 
         pub fn binding(self: *Self, player: Player, obs: Optional(Observation)) Error!void {
             if (!enabled) return;
 
             var a = self.actions.get(player);
-            var d = self.durations.get(player);
-
             assert(a.binding == .None or a.binding == .started);
-
             a.binding = obs;
-            d.binding = update(d.binding, obs);
+
+            var d = self.durations.get(player);
+            const n = d.binding;
+
+            assert(n > 0);
+            const p: u4 = if (n < 3) 3 else 1;
+            const q: u4 = if (n < 3) 8 - ((n - 1) * p) else 2;
+
+            if (obs == .ended) {
+                assert(n >= 1 and n <= 4);
+                if (n != 4) try self.probability.update(p, q);
+                d.binding = 0;
+            } else {
+                assert(obs == .continuing);
+                assert(n >= 1 and n < 4);
+                try self.probability.update(q - p, q);
+                d.binding += 1;
+            }
         }
 
         pub fn psywave(self: *Self, player: Player, power: u8, max: u8) Error!void {
@@ -661,14 +718,6 @@ pub fn Chance(comptime Rational: type) type {
             if (a.metronome != .None) a.pp += n;
             return true;
         }
-    };
-}
-
-fn update(n: anytype, obs: Optional(Observation)) @TypeOf(n) {
-    return switch (obs) {
-        .None, .ended => 0,
-        .continuing => n + 1,
-        else => unreachable,
     };
 }
 
