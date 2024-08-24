@@ -914,6 +914,123 @@ test "Chance.duration" {
     try expectValue(4, chance.actions.p2.duration);
 }
 
+test "Chance.sleep" {
+    var chance: Chance(rational.Rational(u64)) = .{ .probability = .{} };
+
+    for ([_]u8{ 7, 6, 5, 4, 3, 2, 1 }, 1..8) |d, i| {
+        chance.durations.p1.sleep = @intCast(i);
+        try chance.sleep(.P1, 0);
+        try expectProbability(&chance.probability, 1, d);
+        try expectValue(0, chance.durations.p1.sleep);
+
+        chance.reset();
+
+        if (i < 7) {
+            chance.durations.p1.sleep = @intCast(i);
+            try chance.sleep(.P1, 1);
+            try expectProbability(&chance.probability, d - 1, d);
+            try expectValue(@as(u3, @intCast(i)) + 1, chance.durations.p1.sleep);
+
+            chance.reset();
+        }
+    }
+}
+
+test "Chance.confusion" {
+    var chance: Chance(rational.Rational(u64)) = .{ .probability = .{} };
+
+    for ([_]u8{ 1, 4, 3, 2, 1 }, 1..6) |d, i| {
+        if (i > 1) {
+            chance.durations.p2.confusion = @intCast(i);
+            try chance.confusion(.P2, 0);
+            try expectProbability(&chance.probability, 1, d);
+            try expectValue(0, chance.durations.p2.confusion);
+
+            chance.reset();
+        }
+
+        if (i < 5) {
+            chance.durations.p2.confusion = @intCast(i);
+            try chance.confusion(.P2, 1);
+            try expectProbability(&chance.probability, if (d > 1) d - 1 else d, d);
+            try expectValue(@as(u3, @intCast(i)) + 1, chance.durations.p2.confusion);
+
+            chance.reset();
+        }
+    }
+}
+
+test "Chance.disable" {
+    var chance: Chance(rational.Rational(u64)) = .{ .probability = .{} };
+
+    for ([_]u8{ 8, 7, 6, 5, 4, 3, 2, 1 }, 1..9) |d, i| {
+        chance.durations.p1.disable = @intCast(i);
+        try chance.disable(.P1, 0);
+        try expectProbability(&chance.probability, 1, d);
+        try expectValue(0, chance.durations.p1.disable);
+
+        chance.reset();
+
+        if (i < 8) {
+            chance.durations.p1.disable = @intCast(i);
+            try chance.disable(.P1, 1);
+            try expectProbability(&chance.probability, d - 1, d);
+            try expectValue(@as(u4, @intCast(i)) + 1, chance.durations.p1.disable);
+
+            chance.reset();
+        }
+    }
+}
+
+test "Chance.attacking" {
+    var chance: Chance(rational.Rational(u64)) = .{ .probability = .{} };
+
+    for ([_]u8{ 1, 2, 1 }, 1..4) |d, i| {
+        if (i > 1) {
+            chance.durations.p2.attacking = @intCast(i);
+            try chance.attacking(.P2, 0);
+            try expectProbability(&chance.probability, 1, d);
+            try expectValue(0, chance.durations.p2.attacking);
+
+            chance.reset();
+        }
+
+        if (i < 3) {
+            chance.durations.p2.attacking = @intCast(i);
+            try chance.attacking(.P2, 1);
+            try expectProbability(&chance.probability, if (d > 1) d - 1 else d, d);
+            try expectValue(@as(u3, @intCast(i)) + 1, chance.durations.p2.attacking);
+
+            chance.reset();
+        }
+    }
+}
+
+test "Chance.binding" {
+    var chance: Chance(rational.Rational(u64)) = .{ .probability = .{} };
+
+    const ps = [_]u8{ 3, 3, 1, 1 };
+    const qs = [_]u8{ 8, 5, 2, 1 };
+
+    for (ps, qs, 1..5) |p, q, i| {
+        chance.durations.p1.binding = @intCast(i);
+        try chance.binding(.P1, 0);
+        try expectProbability(&chance.probability, p, q);
+        try expectValue(0, chance.durations.p1.binding);
+
+        chance.reset();
+
+        if (i < 4) {
+            chance.durations.p1.binding = @intCast(i);
+            try chance.binding(.P1, 1);
+            try expectProbability(&chance.probability, q - p, q);
+            try expectValue(@as(u3, @intCast(i)) + 1, chance.durations.p1.binding);
+
+            chance.reset();
+        }
+    }
+}
+
 test "Chance.psywave" {
     var chance: Chance(rational.Rational(u64)) = .{ .probability = .{} };
 
