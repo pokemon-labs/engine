@@ -16,7 +16,6 @@ const Actions = chance.Actions;
 const assert = std.debug.assert;
 const Chance = chance.Chance;
 const Choice = common.Choice;
-const Confusion = chance.Confusion;
 const Duration = chance.Duration;
 const Durations = chance.Durations;
 const enabled = pkmn.options.calc;
@@ -608,80 +607,92 @@ pub const Rolls = struct {
         return if (action.speed_tie == .None) &PLAYER_NONE else &PLAYERS;
     }
 
-    const OBS_NONE = [_]Optional(Observation){.None};
-    const OBS_STARTED = [_]Optional(Observation){.started};
-    const OBS_CONTINUING = [_]Optional(Observation){.continuing};
-    const OBS_ENDED = [_]Optional(Observation){.ended};
-    const OBS_ALL = [_]Optional(Observation){ .started, .continuing, .ended };
-    const OBS = [_]Optional(Observation){ .continuing, .ended };
+    const SLP_NONE = [_]Optional(Observation(.sleep)){.None};
+    const SLP_STARTED = [_]Optional(Observation(.sleep)){.started};
+    const SLP_ENDED = [_]Optional(Observation(.sleep)){.ended};
+    const SLP_ALL = [_]Optional(Observation(.sleep)){ .started, .continuing, .ended };
+    const SLP = [_]Optional(Observation(.sleep)){ .continuing, .ended };
 
     /// Returns a slice with a range of values for sleep given the `action` state and observed
     /// `durations`.
-    pub fn sleep(action: Action, duration: Duration) []const Optional(Observation) {
-        if (action.sleep == .None) return &OBS_NONE;
+    pub fn sleep(action: Action, duration: Duration) []const Optional(Observation(.sleep)) {
+        if (action.sleep == .None) return &SLP_NONE;
         return if (Sleeps.get(duration.sleeps, 0) == 0 and action.speed_tie != .None)
-            &OBS_ALL
+            &SLP_ALL
         else switch (action.sleep) {
-            .started => &OBS_STARTED,
-            else => if (Sleeps.get(duration.sleeps, 0) >= 7) &OBS_ENDED else &OBS,
+            .started => &SLP_STARTED,
+            else => if (Sleeps.get(duration.sleeps, 0) >= 7) &SLP_ENDED else &SLP,
         };
     }
+
+    const DIS_NONE = [_]Optional(Observation(.disable)){.None};
+    const DIS_STARTED = [_]Optional(Observation(.disable)){.started};
+    const DIS_CONTINUING = [_]Optional(Observation(.disable)){.continuing};
+    const DIS_ENDED = [_]Optional(Observation(.disable)){.ended};
+    const DIS_ALL = [_]Optional(Observation(.disable)){ .started, .continuing, .ended };
+    const DIS = [_]Optional(Observation(.disable)){ .continuing, .ended };
 
     /// Returns a slice with a range of values for disable given the `action`, observed `durations`,
     /// and the state of the `parent` (observation of the player's Pokémon sleep status).
     pub fn disable(
         action: Action,
         duration: Duration,
-        parent: Optional(Observation),
-    ) []const Optional(Observation) {
-        if (action.disable == .None) return &OBS_NONE;
+        parent: Optional(Observation(.sleep)),
+    ) []const Optional(Observation(.disable)) {
+        if (action.disable == .None) return &DIS_NONE;
         return if (duration.disable == 0 and action.speed_tie != .None)
-            &OBS_ALL
+            &DIS_ALL
         else switch (action.disable) {
-            .started => &OBS_STARTED,
+            .started => &DIS_STARTED,
             else => if (duration.disable >= 8)
-                &OBS_ENDED
+                &DIS_ENDED
             else if (parent != .None and parent != .started)
-                &OBS_CONTINUING
+                &DIS_CONTINUING
             else
-                &OBS,
+                &DIS,
         };
     }
+
+    const ATK_NONE = [_]Optional(Observation(.attacking)){.None};
+    const ATK_STARTED = [_]Optional(Observation(.attacking)){.started};
+    const ATK_CONTINUING = [_]Optional(Observation(.attacking)){.continuing};
+    const ATK_ENDED = [_]Optional(Observation(.attacking)){.ended};
+    const ATK = [_]Optional(Observation(.attacking)){ .continuing, .ended };
 
     /// FIXME
     pub fn attacking(
         action: Action,
         duration: Duration,
-        parent: Optional(Observation),
-    ) []const Optional(Observation) {
+        parent: Optional(Observation(.sleep)),
+    ) []const Optional(Observation(.attacking)) {
         return switch (action.attacking) {
-            .None => &OBS_NONE,
-            .started => &OBS_STARTED,
+            .None => &ATK_NONE,
+            .started => &ATK_STARTED,
             else => if (duration.attacking >= 3)
-                &OBS_ENDED
+                &ATK_ENDED
             else if ((parent == .continuing and parent == .ended) or duration.attacking < 2)
-                &OBS_CONTINUING
+                &ATK_CONTINUING
             else
-                &OBS,
+                &ATK,
         };
     }
 
-    const CFZ_NONE = [_]Optional(Confusion){.None};
-    const CFZ_STARTED = [_]Optional(Confusion){.started};
-    const CFZ_OVERWRITTEN = [_]Optional(Confusion){ .started, .overwritten };
-    const CFZ_CONTINUING = [_]Optional(Confusion){.continuing};
-    const CFZ_ENDED = [_]Optional(Confusion){.ended};
-    const CFZ = [_]Optional(Confusion){ .continuing, .ended };
-    const CFZ_TIE = [_]Optional(Confusion){ .started, .continuing, .ended };
+    const CFZ_NONE = [_]Optional(Observation(.confusion)){.None};
+    const CFZ_STARTED = [_]Optional(Observation(.confusion)){.started};
+    const CFZ_OVERWRITTEN = [_]Optional(Observation(.confusion)){ .started, .overwritten };
+    const CFZ_CONTINUING = [_]Optional(Observation(.confusion)){.continuing};
+    const CFZ_ENDED = [_]Optional(Observation(.confusion)){.ended};
+    const CFZ = [_]Optional(Observation(.confusion)){ .continuing, .ended };
+    const CFZ_TIE = [_]Optional(Observation(.confusion)){ .started, .continuing, .ended };
 
     /// FIXME
     pub fn confusion(
         action: Action,
         duration: Duration,
         tie: Optional(Player),
-        sibling: Optional(Observation),
-        parent: Optional(Observation),
-    ) []const Optional(Confusion) {
+        sibling: Optional(Observation(.attacking)),
+        parent: Optional(Observation(.sleep)),
+    ) []const Optional(Observation(.confusion)) {
         return switch (action.confusion) {
             .None => &CFZ_NONE,
             .started => if (pkmn.options.overwrite and sibling == .ended and duration.confusion < 5)
@@ -699,18 +710,23 @@ pub const Rolls = struct {
         };
     }
 
+    const BND_NONE = [_]Optional(Observation(.binding)){.None};
+    const BND_STARTED = [_]Optional(Observation(.binding)){.started};
+    const BND_ENDED = [_]Optional(Observation(.binding)){.ended};
+    const BND = [_]Optional(Observation(.binding)){ .continuing, .ended };
+
     /// Returns a slice with a range of values for binding given the `action`, observed `durations`,
     /// and the state of the `parent` (whether the player's Pokémon was fully paralyzed).
     pub fn binding(
         action: Action,
         duration: Duration,
         parent: Optional(bool),
-    ) []const Optional(Observation) {
-        if (parent == .true) return &OBS_NONE;
+    ) []const Optional(Observation(.binding)) {
+        if (parent == .true) return &BND_NONE;
         return switch (action.binding) {
-            .None => &OBS_NONE,
-            .started => &OBS_STARTED,
-            else => if (duration.binding >= 4) &OBS_ENDED else &OBS,
+            .None => &BND_NONE,
+            .started => &BND_STARTED,
+            else => if (duration.binding >= 4) &BND_ENDED else &BND,
         };
     }
 
@@ -764,7 +780,10 @@ pub const Rolls = struct {
 
     /// Returns a slice with the correct range of values for confused given the `action` state and
     /// the state of the `parent` (observation of the player's Pokémon confusion status).
-    pub fn confused(action: Action, parent: Optional(Confusion)) []const Optional(bool) {
+    pub fn confused(
+        action: Action,
+        parent: Optional(Observation(.confusion)),
+    ) []const Optional(bool) {
         const done = parent == .None or parent == .ended;
         return if (done or action.confused == .None) &BOOL_NONE else &BOOLS;
     }
@@ -776,24 +795,24 @@ pub const Rolls = struct {
         return if (action.paralyzed == .None) &BOOL_NONE else &BOOLS;
     }
 
-    const SLOT_NONE = [_]u4{0};
-    const SLOT = [_]u4{ 1, 2, 3, 4 };
+    const SLOT_NONE = [_]u3{0};
+    const SLOT = [_]u3{ 1, 2, 3, 4 };
 
     /// Returns a slice with a range of values for move slots given the `action` state
     /// and the state of the `parent` (whether the player's Pokémon's move hit).
     ///
     /// These slots may or **may not be valid** as slots may be unset / have 0 PP.
-    pub fn moveSlot(action: Action, parent: Optional(bool)) []const u4 {
+    pub fn moveSlot(action: Action, parent: Optional(bool)) []const u3 {
         if (parent == .false) return &SLOT_NONE;
         return if (action.move_slot == 0) &SLOT_NONE else &SLOT;
     }
 
-    const MULTI_NONE = [_]u4{0};
-    const MULTI = [_]u4{ 2, 3, 4, 5 };
+    const MULTI_NONE = [_]u3{0};
+    const MULTI = [_]u3{ 2, 3, 4, 5 };
 
     /// Returns a slice with the correct range of values for multi hit given the `action` state
     /// and the state of the `parent` (whether the player's Pokémon's move hit).
-    pub fn multiHit(action: Action, parent: Optional(bool)) []const u4 {
+    pub fn multiHit(action: Action, parent: Optional(bool)) []const u3 {
         if (parent == .false) return &MULTI_NONE;
         return if (action.multi_hit == 0) &MULTI_NONE else &MULTI;
     }
@@ -925,16 +944,16 @@ test "Rolls.paralyzed" {
 
 test "Rolls.moveSlot" {
     const actions: Actions = .{ .p2 = .{ .move_slot = 3 } };
-    try expectEqualSlices(u4, &.{0}, Rolls.moveSlot(actions.p1, .None));
-    try expectEqualSlices(u4, &.{ 1, 2, 3, 4 }, Rolls.moveSlot(actions.p2, .None));
-    try expectEqualSlices(u4, &.{0}, Rolls.moveSlot(actions.p2, .false));
+    try expectEqualSlices(u3, &.{0}, Rolls.moveSlot(actions.p1, .None));
+    try expectEqualSlices(u3, &.{ 1, 2, 3, 4 }, Rolls.moveSlot(actions.p2, .None));
+    try expectEqualSlices(u3, &.{0}, Rolls.moveSlot(actions.p2, .false));
 }
 
 test "Rolls.multiHit" {
     const actions: Actions = .{ .p2 = .{ .multi_hit = 3 } };
-    try expectEqualSlices(u4, &.{0}, Rolls.multiHit(actions.p1, .None));
-    try expectEqualSlices(u4, &.{ 2, 3, 4, 5 }, Rolls.multiHit(actions.p2, .None));
-    try expectEqualSlices(u4, &.{0}, Rolls.multiHit(actions.p2, .false));
+    try expectEqualSlices(u3, &.{0}, Rolls.multiHit(actions.p1, .None));
+    try expectEqualSlices(u3, &.{ 2, 3, 4, 5 }, Rolls.multiHit(actions.p2, .None));
+    try expectEqualSlices(u3, &.{0}, Rolls.multiHit(actions.p2, .false));
 }
 
 test "Rolls.metronome" {
