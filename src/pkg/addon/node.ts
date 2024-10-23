@@ -26,10 +26,28 @@ export async function load(showdown: boolean, addon?: Argument) {
     }
   }
 
+  let wasm_exports: WebAssembly.Exports;
+  const text_decoder = new TextDecoder();
+
   let wasm: WebAssembly.Instance;
   if (addon === 'wasm') {
     try {
-      wasm = (await WebAssembly.instantiate(fs.readFileSync(WASM[+showdown]))).instance;
+      wasm = (await WebAssembly.instantiate(fs.readFileSync(WASM[+showdown]), {
+        js: {
+          log(ptr: number, len: number) {
+            if (len === 0) return console.log('');
+            const msg = text_decoder.decode(new Uint8Array((
+              wasm_exports.memory as WebAssembly.Memory) .buffer, ptr, len));
+            console.log(msg);
+          },
+          panic(ptr: number, len: number) {
+            const msg = text_decoder.decode(new Uint8Array((
+              wasm_exports.memory as WebAssembly.Memory) .buffer, ptr, len));
+            throw new Error('panic: ' + msg);
+          },
+        },
+      })).instance;
+      wasm_exports = wasm.exports;
     } catch (err) {
       throw error(WASM[+showdown], err);
     }

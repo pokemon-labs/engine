@@ -123,8 +123,8 @@ const play = () => {
 // but in the browser initialize needs to be called before anything else to
 // ensure the WASM addon is instantiated (though exactly how depends on the
 // bundler being used...).
-if ('process' in globalThis) {
-  play();
-} else {
-  initialize(options.showdown).then(play).catch(console.error);
-}
+// if ('process' in globalThis) {
+//   play();
+// } else {
+  initialize(options.showdown, 'wasm').then(play).catch(console.error);
+// }
