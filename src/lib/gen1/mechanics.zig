@@ -878,7 +878,7 @@ fn doMove(
     var miss = showdown and miss: {
         immune = move.target != .Self and !status and !counter and
             (@intFromEnum(move.type.effectiveness(foe.active.types.type1)) == 0 or
-            @intFromEnum(move.type.effectiveness(foe.active.types.type2)) == 0);
+                @intFromEnum(move.type.effectiveness(foe.active.types.type2)) == 0);
         if (immune and move.effect != .Binding) break :miss true;
         if (move.effect == .OHKO and side.active.stats.spe < foe.active.stats.spe) {
             battle.last_damage = 0;
@@ -1274,15 +1274,15 @@ fn counterDamage(battle: anytype, player: Player, move: Move.Data, options: anyt
     // Pretend Splash was used as a stand-in when no move has been used to fail below with 0 BP
     const foe_last_selected_move =
         Move.get(if (foe.last_selected_move == .None or foe.last_selected_move == .SKIP_TURN)
-        .Splash
-    else
-        foe.last_selected_move);
+            .Splash
+        else
+            foe.last_selected_move);
 
     const used = battle.lastMove(player.foe()).counterable != 0;
     const selected = foe_last_selected_move.bp > 0 and
         foe.last_selected_move != .Counter and
         (foe_last_selected_move.type == .Normal or
-        foe_last_selected_move.type == .Fighting);
+            foe_last_selected_move.type == .Fighting);
 
     if (!used and !selected) {
         try options.log.fail(.{ battle.active(player), .None });
