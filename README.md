@@ -64,11 +64,7 @@ The Zig website has [installation instructions](https://ziglang.org/learn/gettin
 walk through how to install Zig on each platform - ~~the engine code should work on Zig v0.14.0,
 though tracks Zig's master branch so this may change in the future if breaking language changes are
 introduced~~ the engine code currently only works on the Zig master branch due to breaking language
-changes that have been introduced. Note that **due to a [bug in the Zig
-compiler](https://github.com/ziglang/zig/issues/17768), building a version of [Zig from
-source](https://github.com/ziglang/zig/wiki/Building-Zig-From-Source) after having applied a
-[patch](zig.patch) to revert [ziglang/zig#17391](https://github.com/ziglang/zig/pull/17391)  is
-recommended for performance**.
+changes that have been introduced.
 
 `libpkmn` can be built with `-Dshowdown` to instead produce the Pokémon Showdown compatible
 `libpkmn-showdown` library. Furthermore, protocol message logging can be enabled through `-Dlog`.
