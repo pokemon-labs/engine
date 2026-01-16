@@ -16,8 +16,6 @@ const showdown = options.showdown;
 const Species = data.Species;
 const Stats = data.Stats;
 
-const Struct = if (@hasField(std.builtin.Type, "struct")) .@"struct" else .Struct;
-
 pub const Options = struct {
     cleric: bool = showdown,
 };
@@ -142,7 +140,7 @@ pub const Pokemon = struct {
         var pokemon = data.Pokemon{};
         pokemon.species = p.species;
         const species = Species.get(p.species);
-        inline for (@field(@typeInfo(@TypeOf(pokemon.stats)), @tagName(Struct)).fields) |field| {
+        inline for (@typeInfo(@TypeOf(pokemon.stats)).@"struct".fields) |field| {
             const hp = comptime std.mem.eql(u8, field.name, "hp");
             const spc =
                 comptime std.mem.eql(u8, field.name, "spa") or std.mem.eql(u8, field.name, "spd");
@@ -183,7 +181,7 @@ pub const Pokemon = struct {
 
         var stats: Stats(u16) = .{};
         const dvs = gen1.DVs.random(rand);
-        inline for (@field(@typeInfo(@TypeOf(stats)), @tagName(Struct)).fields) |field| {
+        inline for (@typeInfo(@TypeOf(stats)).@"struct".fields) |field| {
             const hp = std.mem.eql(u8, field.name, "hp");
             const spc = std.mem.eql(u8, field.name, "spa") or std.mem.eql(u8, field.name, "spd");
             @field(stats, field.name) = Stats(u16).calc(

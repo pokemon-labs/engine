@@ -12,10 +12,6 @@ const print = std.debug.print;
 
 const endian = builtin.cpu.arch.endian();
 const Endian = std.builtin.Endian;
-const big = if (@hasField(Endian, "big")) Endian.big else Endian.Big;
-const little = if (@hasField(Endian, "little")) Endian.little else Endian.Little;
-
-const Int = if (@hasField(std.builtin.Type, "int")) .int else .Int;
 
 pub const ArgType = enum(u8) {
     None,
@@ -841,7 +837,7 @@ pub const ByteStream = struct {
 
         pub fn writeInt(self: Writer, comptime T: type, v: T, end: std.builtin.Endian) Error!void {
             // TODO: rework this to write directly to the buffer?
-            var bytes: [@divExact(@field(@typeInfo(T), @tagName(Int)).bits, 8)]u8 = undefined;
+            var bytes: [@divExact(@field(@typeInfo(T), @tagName(.int)).bits, 8)]u8 = undefined;
             std.mem.writeInt(std.math.ByteAlignedInt(@TypeOf(v)), &bytes, v, end);
             return self.writeAll(&bytes);
         }
@@ -957,13 +953,13 @@ pub fn format(
                 }
                 printc(" L{d}", .{a[i]}, a, b, &i, 1, color);
                 switch (endian) {
-                    big => {
+                    .big => {
                         var hp = @as(u16, a[i]) << 8 | @as(u16, a[i + 1]);
                         printc(" {d}", .{hp}, a, b, &i, 2, color);
                         hp = @as(u16, a[i]) << 8 | @as(u16, a[i + 1]);
                         printc("/{d}", .{hp}, a, b, &i, 2, color);
                     },
-                    little => {
+                    .little => {
                         var hp = @as(u16, a[i + 1]) << 8 | @as(u16, a[i]);
                         printc(" {d}", .{hp}, a, b, &i, 2, color);
                         hp = @as(u16, a[i + 1]) << 8 | @as(u16, a[i]);
@@ -994,8 +990,8 @@ pub fn format(
             },
             .Turn => {
                 const turn = switch (endian) {
-                    big => @as(u16, a[i]) << 8 | @as(u16, a[i + 1]),
-                    little => @as(u16, a[i + 1]) << 8 | @as(u16, a[i]),
+                    .big => @as(u16, a[i]) << 8 | @as(u16, a[i + 1]),
+                    .little => @as(u16, a[i + 1]) << 8 | @as(u16, a[i]),
                 };
                 printc(" {d}", .{turn}, a, b, &i, 2, color);
             },
@@ -1006,13 +1002,13 @@ pub fn format(
                 var id = ID.from(@intCast(a[i]));
                 printc(" {s}({d})", .{ @tagName(id.player), id.id }, a, b, &i, 1, color);
                 switch (endian) {
-                    big => {
+                    .big => {
                         var hp = @as(u16, a[i]) << 8 | @as(u16, a[i + 1]);
                         printc(" {d}", .{hp}, a, b, &i, 2, color);
                         hp = @as(u16, a[i]) << 8 | @as(u16, a[i + 1]);
                         printc("/{d}", .{hp}, a, b, &i, 2, color);
                     },
-                    little => {
+                    .little => {
                         var hp = @as(u16, a[i + 1]) << 8 | @as(u16, a[i]);
                         printc(" {d}", .{hp}, a, b, &i, 2, color);
                         hp = @as(u16, a[i + 1]) << 8 | @as(u16, a[i]);
@@ -1134,13 +1130,13 @@ pub fn format(
                 const id = ID.from(@intCast(a[i]));
                 printc(" {s}({d})", .{ @tagName(id.player), id.id }, a, b, &i, 1, color);
                 switch (endian) {
-                    big => {
+                    .big => {
                         var hp = @as(u16, a[i]) << 8 | @as(u16, a[i + 1]);
                         printc(" {d}", .{hp}, a, b, &i, 2, color);
                         hp = @as(u16, a[i]) << 8 | @as(u16, a[i + 1]);
                         printc("/{d}", .{hp}, a, b, &i, 2, color);
                     },
-                    little => {
+                    .little => {
                         var hp = @as(u16, a[i + 1]) << 8 | @as(u16, a[i]);
                         printc(" {d}", .{hp}, a, b, &i, 2, color);
                         hp = @as(u16, a[i + 1]) << 8 | @as(u16, a[i]);
@@ -1346,8 +1342,8 @@ test "|switch|" {
     try log.switched(.{ p2.ident(3), &snorlax });
     const par = 0b1000000;
     var expected: []const u8 = switch (endian) {
-        big => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 91, 0, 200, 1, 144, par },
-        little => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 91, 200, 0, 144, 1, par },
+        .big => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 91, 0, 200, 1, 144, par },
+        .little => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 91, 200, 0, 144, 1, par },
     };
     try expectLog1(expected, buf[0..9]);
     stream.reset();
@@ -1357,8 +1353,8 @@ test "|switch|" {
     snorlax.status = 0;
     try log.switched(.{ p2.ident(3), &snorlax });
     expected = switch (endian) {
-        big => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 100, 0, 0, 1, 144, 0 },
-        little => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 100, 0, 0, 144, 1, 0 },
+        .big => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 100, 0, 0, 1, 144, 0 },
+        .little => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 100, 0, 0, 144, 1, 0 },
     };
     try expectLog1(expected, buf[0..9]);
     stream.reset();
@@ -1366,8 +1362,8 @@ test "|switch|" {
     snorlax.hp = 400;
     try log.switched(.{ p2.ident(3), &snorlax });
     expected = switch (endian) {
-        big => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 100, 1, 144, 1, 144, 0 },
-        little => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 100, 144, 1, 144, 1, 0 },
+        .big => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 100, 1, 144, 1, 144, 0 },
+        .little => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 100, 144, 1, 144, 1, 0 },
     };
     try expectLog1(expected, buf[0..9]);
     stream.reset();
@@ -1385,8 +1381,8 @@ test "|switch|" {
         N(gen2.Gender.Female),
         91,
     } ++ switch (endian) {
-        big => .{ 0, 200, 1, 144, par },
-        little => .{ 200, 0, 144, 1, par },
+        .big => .{ 0, 200, 1, 144, par },
+        .little => .{ 200, 0, 144, 1, par },
     });
     try expectLog2(expected, buf[0..10]);
     stream.reset();
@@ -1415,8 +1411,8 @@ test "|faint|" {
 test "|turn|" {
     try log.turn(.{42});
     const expected = switch (endian) {
-        big => &.{ N(ArgType.Turn), 0, 42, N(ArgType.None) },
-        little => &.{ N(ArgType.Turn), 42, 0, N(ArgType.None) },
+        .big => &.{ N(ArgType.Turn), 0, 42, N(ArgType.None) },
+        .little => &.{ N(ArgType.Turn), 42, 0, N(ArgType.None) },
     };
     try expectLog1(expected, buf[0..4]);
     stream.reset();
@@ -1440,8 +1436,8 @@ test "|-damage|" {
     chansey.status = gen1.Status.slp(1);
     try log.damage(.{ p2.ident(2), &chansey, .None });
     var expected: []const u8 = switch (endian) {
-        big => &.{ N(ArgType.Damage), 0b1010, 2, 100, 2, 191, 1, N(Damage.None) },
-        little => &.{ N(ArgType.Damage), 0b1010, 100, 2, 191, 2, 1, N(Damage.None) },
+        .big => &.{ N(ArgType.Damage), 0b1010, 2, 100, 2, 191, 1, N(Damage.None) },
+        .little => &.{ N(ArgType.Damage), 0b1010, 100, 2, 191, 2, 1, N(Damage.None) },
     };
     try expectLog1(expected, buf[0..8]);
     stream.reset();
@@ -1451,8 +1447,8 @@ test "|-damage|" {
     chansey.status = 0;
     try log.damage(.{ p2.ident(2), &chansey, .Confusion });
     expected = switch (endian) {
-        big => &.{ N(ArgType.Damage), 0b1010, 0, 100, 1, 0, 0, N(Damage.Confusion) },
-        little => &.{ N(ArgType.Damage), 0b1010, 100, 0, 0, 1, 0, N(Damage.Confusion) },
+        .big => &.{ N(ArgType.Damage), 0b1010, 0, 100, 1, 0, 0, N(Damage.Confusion) },
+        .little => &.{ N(ArgType.Damage), 0b1010, 100, 0, 0, 1, 0, N(Damage.Confusion) },
     };
     try expectLog1(expected, buf[0..8]);
     stream.reset();
@@ -1460,8 +1456,8 @@ test "|-damage|" {
     chansey.status = gen1.Status.init(.PSN);
     try log.damage(.{ p2.ident(2), &chansey, .RecoilOf, p1.ident(1) });
     expected = switch (endian) {
-        big => &.{ N(ArgType.Damage), 0b1010, 0, 100, 1, 0, 0b1000, N(Damage.RecoilOf), 1 },
-        little => &.{ N(ArgType.Damage), 0b1010, 100, 0, 0, 1, 0b1000, N(Damage.RecoilOf), 1 },
+        .big => &.{ N(ArgType.Damage), 0b1010, 0, 100, 1, 0, 0b1000, N(Damage.RecoilOf), 1 },
+        .little => &.{ N(ArgType.Damage), 0b1010, 100, 0, 0, 1, 0b1000, N(Damage.RecoilOf), 1 },
     };
     try expectLog1(expected, buf[0..9]);
     stream.reset();
@@ -1473,8 +1469,8 @@ test "|-heal|" {
     chansey.status = gen1.Status.slp(1);
     try log.heal(.{ p2.ident(2), &chansey, .None });
     var expected: []const u8 = switch (endian) {
-        big => &.{ N(ArgType.Heal), 0b1010, 2, 100, 2, 191, 1, N(Heal.None) },
-        little => &.{ N(ArgType.Heal), 0b1010, 100, 2, 191, 2, 1, N(Heal.None) },
+        .big => &.{ N(ArgType.Heal), 0b1010, 2, 100, 2, 191, 1, N(Heal.None) },
+        .little => &.{ N(ArgType.Heal), 0b1010, 100, 2, 191, 2, 1, N(Heal.None) },
     };
     try expectLog1(expected, buf[0..8]);
     stream.reset();
@@ -1484,16 +1480,16 @@ test "|-heal|" {
     chansey.status = 0;
     try log.heal(.{ p2.ident(2), &chansey, .Silent });
     expected = switch (endian) {
-        big => &.{ N(ArgType.Heal), 0b1010, 0, 100, 1, 0, 0, N(Heal.Silent) },
-        little => &.{ N(ArgType.Heal), 0b1010, 100, 0, 0, 1, 0, N(Heal.Silent) },
+        .big => &.{ N(ArgType.Heal), 0b1010, 0, 100, 1, 0, 0, N(Heal.Silent) },
+        .little => &.{ N(ArgType.Heal), 0b1010, 100, 0, 0, 1, 0, N(Heal.Silent) },
     };
     try expectLog1(expected, buf[0..8]);
     stream.reset();
 
     try log.heal(.{ p2.ident(2), &chansey, .Drain, p1.ident(1) });
     expected = switch (endian) {
-        big => &.{ N(ArgType.Heal), 0b1010, 0, 100, 1, 0, 0, N(Heal.Drain), 1 },
-        little => &.{ N(ArgType.Heal), 0b1010, 100, 0, 0, 1, 0, N(Heal.Drain), 1 },
+        .big => &.{ N(ArgType.Heal), 0b1010, 0, 100, 1, 0, 0, N(Heal.Drain), 1 },
+        .little => &.{ N(ArgType.Heal), 0b1010, 100, 0, 0, 1, 0, N(Heal.Drain), 1 },
     };
     try expectLog1(expected, buf[0..9]);
     stream.reset();
@@ -1736,8 +1732,8 @@ test "|drag|" {
         N(gen2.Gender.Female),
         91,
     } ++ switch (endian) {
-        big => .{ 0, 200, 1, 144, par },
-        little => .{ 200, 0, 144, 1, par },
+        .big => .{ 0, 200, 1, 144, par },
+        .little => .{ 200, 0, 144, 1, par },
     });
     try expectLog2(expected, buf[0..10]);
     stream.reset();
@@ -1770,8 +1766,8 @@ test "|-sethp|" {
     blissey.hp = 612;
     try log.sethp(.{ p2.ident(2), &blissey, .Silent });
     const expected: []const u8 = switch (endian) {
-        big => &.{ N(ArgType.SetHP), 0b1010, 2, 100, 2, 201, 0, N(SetHP.Silent) },
-        little => &.{ N(ArgType.SetHP), 0b1010, 100, 2, 201, 2, 0, N(SetHP.Silent) },
+        .big => &.{ N(ArgType.SetHP), 0b1010, 2, 100, 2, 201, 0, N(SetHP.Silent) },
+        .little => &.{ N(ArgType.SetHP), 0b1010, 100, 2, 201, 2, 0, N(SetHP.Silent) },
     };
     try expectLog2(expected, buf[0..8]);
     stream.reset();

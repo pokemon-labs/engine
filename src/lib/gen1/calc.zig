@@ -35,9 +35,6 @@ const Sleeps = chance.Sleeps;
 const tty = true; // DEBUG
 const summary = false; // DEBUG
 
-const Int = if (@hasField(std.builtin.Type, "int")) .int else .Int;
-const Enum = if (@hasField(std.builtin.Type, "enum")) .@"enum" else .Enum;
-
 /// Information relevant to damage calculation that occured during a Generation I battle `update`.
 pub const Summaries = extern struct {
     /// Relevant information for Player 1.
@@ -99,13 +96,13 @@ pub const Calc = struct {
         self: Calc,
         player: Player,
         comptime field: Action.Field,
-    ) ?util.FieldType(Action, field) {
+    ) ?@FieldType(Action, @tagName(field)) {
         if (!enabled) return null;
 
         const val = @field(self.overrides.get(player), @tagName(field));
         return if (switch (@typeInfo(@TypeOf(val))) {
-            Enum => val != .None,
-            Int => val != 0,
+            .@"enum" => val != .None,
+            .int => val != 0,
             else => unreachable,
         }) val else null;
     }
@@ -146,7 +143,7 @@ const Null = struct {
         self: Null,
         player: Player,
         comptime field: Action.Field,
-    ) ?util.FieldType(Action, field) {
+    ) ?@FieldType(Action, @tagName(field)) {
         _ = .{ self, player };
         return null;
     }

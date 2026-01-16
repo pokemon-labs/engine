@@ -78,8 +78,3 @@ This directory contains miscellaneous scripts and tools useful for working on th
    Alternatively, the tool can be used to run over the last step of a failed fuzz test:
 
       $ zig build transitions -Dcalc -Dchance -- <GEN> < logs/dump.bin
-
-- [`version.zig`](version.zig): Helper to determine which version of the zig
-  [example](../../examples/zig) will build using the existing Zig version:
-
-      $ zig run src/tools/version.zig

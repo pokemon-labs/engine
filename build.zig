@@ -8,17 +8,6 @@ pub const Options = struct {
     calc: ?bool = null,
 };
 
-const Step = if (@hasDecl(std.Build, "Step")) std.Build.Step else .{
-    .Compile = std.Build.CompileStep,
-    .Options = std.Build.OptionsStep,
-    .Run = std.Build.RunStep,
-};
-const has_path = @hasField(std.Build.LazyPath, "path");
-const root_module = @hasField(Step.Compile, "root_module");
-const force_pic = !@hasField(std.Build.SharedLibraryOptions, "pic");
-const ResolvedTarget =
-    if (@hasDecl(std.Build, "ResolvedTarget")) std.Build.ResolvedTarget else std.zig.CrossTarget;
-
 pub fn module(b: *std.Build, options: Options) *std.Build.Module {
     const dirname = comptime std.fs.path.dirname(@src().file) orelse ".";
     const build_options = b.addOptions();
@@ -29,23 +18,15 @@ pub fn module(b: *std.Build, options: Options) *std.Build.Module {
 
     const root_source_file: std.Build.LazyPath =
         .{ .cwd_relative = dirname ++ "/src/lib/pkmn.zig" };
-    const Import = if (@hasDecl(std.Build.Module, "Import"))
-        std.Build.Module.Import
-    else
-        std.Build.ModuleDependency;
-    const imports: []const Import =
+    const imports: []const std.Build.Module.Import =
         &.{.{ .name = "build_options", .module = build_options.createModule() }};
-    return b.createModule(if (@hasDecl(std.Build, "CreateModuleOptions"))
-        .{ .source_file = root_source_file, .dependencies = imports }
-    else
-        .{ .root_source_file = root_source_file, .imports = imports });
+    return b.createModule(.{ .root_source_file = root_source_file, .imports = imports });
 }
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const default: ?bool = if (force_pic) false else null;
     const node_headers = b.option([]const u8, "node-headers", "Path to node-headers");
     const node_import_lib =
         b.option([]const u8, "node-import-library", "Path to node import library (Windows)");
@@ -57,8 +38,8 @@ pub fn build(b: *std.Build) !void {
     const wasm_stack_size =
         b.option(u64, "wasm-stack-size", "The size of WASM stack") orelse std.wasm.page_size;
     const dynamic = b.option(bool, "dynamic", "Build a dynamic library") orelse false;
-    const strip = b.option(bool, "strip", "Strip debugging symbols from binary") orelse default;
-    const pic = b.option(bool, "pic", "Force position independent code") orelse default;
+    const strip = b.option(bool, "strip", "Strip debugging symbols from binary") orelse null;
+    const pic = b.option(bool, "pic", "Force position independent code") orelse null;
     const emit_asm = b.option(bool, "emit-asm", "Output .s (assembly code)") orelse false;
     const emit_ll = b.option(bool, "emit-ll", "Output .ll (LLVM IR)") orelse false;
 
@@ -104,29 +85,18 @@ pub fn build(b: *std.Build) !void {
 
     const name = if (showdown) "pkmn-showdown" else "pkmn";
 
-    const pkmn: ?*std.Build.Module = if (@hasDecl(std.Build, "CreateModuleOptions"))
-        null
-    else
-        b.addModule("pkmn", .{
-            .root_source_file = if (has_path)
-                .{ .path = "src/lib/pkmn.zig" }
-            else
-                b.path("src/lib/pkmn.zig"),
-            .optimize = optimize,
-            .target = target,
-            .imports = &.{.{ .name = "build_options", .module = options.createModule() }},
-        });
+    const pkmn: *std.Build.Module = b.addModule("pkmn", .{
+        .root_source_file = b.path("src/lib/pkmn.zig"),
+        .optimize = optimize,
+        .target = target,
+        .imports = &.{.{ .name = "build_options", .module = options.createModule() }},
+    });
 
     var c = false;
     if (node_headers) |headers| {
         const addon = b.fmt("{s}.node", .{name});
-        const path = if (has_path) .{ .path = "src/lib/node.zig" } else b.path("src/lib/node.zig");
-        const lib = b.addSharedLibrary(if (force_pic) .{
-            .name = addon,
-            .root_source_file = path,
-            .optimize = optimize,
-            .target = target,
-        } else .{
+        const path = b.path("src/lib/node.zig");
+        const lib = b.addSharedLibrary(.{
             .name = addon,
             .root_source_file = path,
             .optimize = optimize,
@@ -134,18 +104,17 @@ pub fn build(b: *std.Build) !void {
             .strip = strip,
             .pic = pic,
         });
-        (if (root_module) lib.root_module else lib).addOptions("build_options", options);
-        lib.addSystemIncludePath(if (has_path) .{ .path = headers } else b.path(headers));
+        lib.root_module.addOptions("build_options", options);
+        lib.addSystemIncludePath(b.path(headers));
         lib.linkLibC();
         if (node_import_lib) |il| {
-            lib.addObjectFile(if (has_path) .{ .path = il } else b.path(il));
+            lib.addObjectFile(b.path(il));
         } else if (detect(target).os.tag == .windows) {
             try std.io.getStdErr().writeAll("Must provide --node-import-library path on Windows\n");
             std.process.exit(1);
         }
         lib.linker_allow_shlib_undefined = true;
         maybeStrip(b, lib, b.getInstallStep(), strip, cmd);
-        if (force_pic and pic orelse false) lib.force_pic = pic;
         // Always emit to build/lib because this is where the driver code expects to find it
         // TODO: ziglang/zig#2231 - using the following used to work (though was hacky):
         //
@@ -161,22 +130,11 @@ pub fn build(b: *std.Build) !void {
     } else if (demo) {
         const path = "src/tools/demo.zig";
         const n = if (showdown) "demo-showdown" else "demo";
-        const mod = pkmn orelse module(b, .{
-            .showdown = showdown,
-            .log = log,
-            .chance = chance,
-            .calc = calc,
-        });
+        const mod = pkmn;
         try buildWasm(b, n, path, optimize, strip, pic, wasm_stack_size, mod, options);
     } else if (dynamic) {
-        const path = if (has_path) .{ .path = "src/lib/c.zig" } else b.path("src/lib/c.zig");
-        const lib = b.addSharedLibrary(if (force_pic) .{
-            .name = name,
-            .root_source_file = path,
-            .version = try std.SemanticVersion.parse(version),
-            .optimize = optimize,
-            .target = target,
-        } else .{
+        const path = b.path("src/lib/c.zig");
+        const lib = b.addSharedLibrary(.{
             .name = name,
             .root_source_file = path,
             .version = try std.SemanticVersion.parse(version),
@@ -185,20 +143,14 @@ pub fn build(b: *std.Build) !void {
             .strip = strip,
             .pic = pic,
         });
-        (if (root_module) lib.root_module else lib).addOptions("build_options", options);
-        lib.addIncludePath(if (has_path) .{ .path = "src/include" } else b.path("src/include"));
+        lib.root_module.addOptions("build_options", options);
+        lib.addIncludePath(b.path("src/include"));
         maybeStrip(b, lib, b.getInstallStep(), strip, cmd);
-        if (force_pic and pic orelse false) lib.force_pic = pic;
         b.installArtifact(lib);
         c = true;
     } else {
-        const path = if (has_path) .{ .path = "src/lib/c.zig" } else b.path("src/lib/c.zig");
-        const lib = b.addStaticLibrary(if (force_pic) .{
-            .name = name,
-            .root_source_file = path,
-            .optimize = optimize,
-            .target = target,
-        } else .{
+        const path = b.path("src/lib/c.zig");
+        const lib = b.addStaticLibrary(.{
             .name = name,
             .root_source_file = path,
             .optimize = optimize,
@@ -206,11 +158,10 @@ pub fn build(b: *std.Build) !void {
             .strip = strip,
             .pic = pic,
         });
-        (if (root_module) lib.root_module else lib).addOptions("build_options", options);
-        lib.addIncludePath(if (has_path) .{ .path = "src/include" } else b.path("src/include"));
+        lib.root_module.addOptions("build_options", options);
+        lib.addIncludePath(b.path("src/include"));
         lib.bundle_compiler_rt = true;
         maybeStrip(b, lib, b.getInstallStep(), strip, cmd);
-        if (force_pic and pic orelse false) lib.force_pic = pic;
         if (emit_asm) {
             b.getInstallStep().dependOn(&b.addInstallFileWithDir(
                 lib.getEmittedAsm(),
@@ -230,8 +181,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     if (c) {
-        const path =
-            if (has_path) .{ .path = "src/include/pkmn.h" } else b.path("src/include/pkmn.h");
+        const path = b.path("src/include/pkmn.h");
         const header = b.addInstallFileWithDir(path, .header, "pkmn.h");
         b.getInstallStep().dependOn(&header.step);
 
@@ -273,7 +223,7 @@ pub fn build(b: *std.Build) !void {
     // TODO: tests can be run multiple times due to @imports
     const tests = TestStep.create(b, options, config);
 
-    var exes = std.ArrayList(*Step.Compile).init(b.allocator);
+    var exes = std.ArrayList(*std.Build.Step.Compile).init(b.allocator);
     const tools: ToolConfig = .{
         .options = .{
             .showdown = showdown,
@@ -331,7 +281,6 @@ fn buildWasm(
     import: ?*std.Build.Module,
     options: anytype,
 ) !void {
-    const entry = @hasDecl(Step.Compile, "Entry");
     const mode = switch (optimize) {
         .ReleaseFast, .ReleaseSafe => .ReleaseSmall,
         else => optimize,
@@ -355,92 +304,55 @@ fn buildWasm(
     if (builtin.zig_version.order(try std.SemanticVersion.parse("0.12.0")) != .lt) {
         features.addFeature(@intFromEnum(std.Target.wasm.Feature.multivalue));
     }
-    const freestanding = if (@hasDecl(std.Build, "resolveTargetQuery"))
-        b.resolveTargetQuery(.{
-            .cpu_arch = .wasm32,
-            .os_tag = .freestanding,
-            .cpu_features_add = features,
-        })
-    else
-        ResolvedTarget{
-            .cpu_arch = .wasm32,
-            .os_tag = .freestanding,
-            .cpu_features_add = features,
-        };
-    const path = if (has_path) .{ .path = root_src_file } else b.path(root_src_file);
-    const bin = if (entry) bin: {
-        const exe = b.addExecutable(if (force_pic) .{
-            .name = name,
-            .root_source_file = path,
-            .optimize = mode,
-            .target = freestanding,
-        } else .{
-            .name = name,
-            .root_source_file = path,
-            .optimize = mode,
-            .target = freestanding,
-            .strip = strip,
-            .pic = pic,
-        });
+    const freestanding = b.resolveTargetQuery(.{
+        .cpu_arch = .wasm32,
+        .os_tag = .freestanding,
+        .cpu_features_add = features,
+    });
+    const path = b.path(root_src_file);
+    const exe = b.addExecutable(.{
+        .name = name,
+        .root_source_file = path,
+        .optimize = mode,
+        .target = freestanding,
+        .strip = strip,
+        .pic = pic,
+    });
 
-        var file = try std.fs.cwd().openFile(root_src_file, .{});
-        defer file.close();
-        const bytes = try file.readToEndAlloc(b.allocator, std.math.maxInt(usize));
-        (if (root_module) exe.root_module else exe).export_symbol_names = try exports(b, bytes);
-        exe.entry = .disabled;
-        break :bin exe;
-    } else bin: {
-        const lib = b.addSharedLibrary(.{
-            .name = name,
-            .root_source_file = path,
-            .optimize = mode,
-            .target = freestanding,
-        });
-        lib.rdynamic = true;
-        break :bin lib;
-    };
+    var file = try std.fs.cwd().openFile(root_src_file, .{});
+    defer file.close();
+    const bytes = try file.readToEndAlloc(b.allocator, std.math.maxInt(usize));
+    exe.root_module.export_symbol_names = try exports(b, bytes);
+    exe.entry = .disabled;
+
     if (import) |i| {
-        if (root_module) {
-            bin.root_module.addImport("pkmn", i);
-        } else {
-            bin.addModule("pkmn", i);
-        }
+        exe.root_module.addImport("pkmn", i);
     }
-    bin.stack_size = wasm_stack_size;
-    if (@hasDecl(@TypeOf(bin.*), "strip")) bin.strip = strip orelse false;
-    if (force_pic and pic orelse false) bin.force_pic = pic;
-    (if (root_module) bin.root_module else bin).addOptions("build_options", options);
+    exe.stack_size = wasm_stack_size;
+    exe.root_module.addOptions("build_options", options);
 
     const opt = b.findProgram(&.{"wasm-opt"}, &.{"./node_modules/.bin"}) catch null;
     if (optimize != .Debug and opt != null) {
         const out = b.fmt("build/lib/{s}.wasm", .{name});
         const sh = b.addSystemCommand(&.{ opt.?, "--enable-bulk-memory", "--enable-simd", "-O4" });
-        sh.addArtifactArg(bin);
+        sh.addArtifactArg(exe);
         sh.addArg("-o");
-        if (@hasDecl(@TypeOf(sh.*), "addFileSourceArg")) {
-            sh.addFileSourceArg(if (has_path) .{ .path = out } else b.path(out));
-        } else {
-            sh.addFileArg(if (has_path) .{ .path = out } else b.path(out));
-        }
+        sh.addFileArg(b.path(out));
         b.getInstallStep().dependOn(&sh.step);
-        if (!entry) b.installArtifact(bin);
-    } else if (entry) {
-        b.getInstallStep().dependOn(&b.addInstallArtifact(bin, .{
+    } else {
+        b.getInstallStep().dependOn(&b.addInstallArtifact(exe, .{
             .dest_dir = .{ .override = std.Build.InstallDir{ .lib = {} } },
         }).step);
-    } else {
-        b.installArtifact(bin);
     }
 }
 
 fn maybeStrip(
     b: *std.Build,
-    artifact: *Step.Compile,
+    artifact: *std.Build.Step.Compile,
     step: *std.Build.Step,
     strip: ?bool,
     cmd: ?[]const u8,
 ) void {
-    if (@hasDecl(@TypeOf(artifact.*), "strip")) artifact.strip = strip orelse false;
     if (!(strip orelse false) or cmd == null) return;
     // Using `strip -r -u` for dynamic libraries is supposed to work on macOS but doesn't...
     const mac = builtin.os.tag == .macos;
@@ -453,7 +365,7 @@ fn maybeStrip(
 }
 
 const Config = struct {
-    target: ResolvedTarget,
+    target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     pic: ?bool,
     strip: ?bool,
@@ -464,7 +376,7 @@ const TestStep = struct {
     step: std.Build.Step,
     build: bool,
 
-    pub fn create(b: *std.Build, options: *Step.Options, config: Config) *TestStep {
+    pub fn create(b: *std.Build, options: *std.Build.Step.Options, config: Config) *TestStep {
         const coverage = b.option([]const u8, "test-coverage", "Generate test coverage");
         const test_filter =
             b.option([]const u8, "test-filter", "Skip tests that do not match filter");
@@ -473,13 +385,8 @@ const TestStep = struct {
         const step = std.Build.Step.init(.{ .id = .custom, .name = "Run all tests", .owner = b });
         self.* = .{ .step = step, .build = test_filter == null };
 
-        const path = if (has_path) .{ .path = "src/lib/test.zig" } else b.path("src/lib/test.zig");
-        const tests = b.addTest(if (force_pic) .{
-            .root_source_file = path,
-            .optimize = config.optimize,
-            .target = config.target,
-            .filter = test_filter,
-        } else .{
+        const path = b.path("src/lib/test.zig");
+        const tests = b.addTest(.{
             .root_source_file = path,
             .optimize = config.optimize,
             .target = config.target,
@@ -488,13 +395,9 @@ const TestStep = struct {
             .strip = config.strip,
             .pic = config.pic,
         });
-        (if (root_module) tests.root_module else tests).addOptions("build_options", options);
+        tests.root_module.addOptions("build_options", options);
 
         maybeStrip(b, tests, &tests.step, config.strip, config.cmd);
-        if (force_pic) {
-            tests.single_threaded = true;
-            if (config.pic orelse false) tests.force_pic = config.pic;
-        }
         if (coverage) |c| {
             tests.setExecCmd(&.{ "kcov", "--include-pattern=src/lib", c, null });
         }
@@ -511,25 +414,20 @@ const ToolConfig = struct {
     tool: struct {
         tests: ?*TestStep,
         name: ?[]const u8 = null,
-        exes: *std.ArrayList(*Step.Compile),
+        exes: *std.ArrayList(*std.Build.Step.Compile),
     },
 };
 
-fn tool(b: *std.Build, path: []const u8, config: ToolConfig) !?*Step.Run {
+fn tool(b: *std.Build, path: []const u8, config: ToolConfig) !?*std.Build.Step.Run {
     if (!try exists(path)) return null;
     var name = config.tool.name orelse std.fs.path.basename(path);
     const index = std.mem.lastIndexOfScalar(u8, name, '.');
     if (index) |i| name = name[0..i];
     if (config.options.showdown orelse false) name = b.fmt("{s}-showdown", .{name});
 
-    const exe = b.addExecutable(if (force_pic) .{
+    const exe = b.addExecutable(.{
         .name = name,
-        .root_source_file = if (has_path) .{ .path = path } else b.path(path),
-        .target = config.general.target,
-        .optimize = config.general.optimize,
-    } else .{
-        .name = name,
-        .root_source_file = if (has_path) .{ .path = path } else b.path(path),
+        .root_source_file = b.path(path),
         .target = config.general.target,
         .optimize = config.general.optimize,
         .single_threaded = true,
@@ -537,20 +435,12 @@ fn tool(b: *std.Build, path: []const u8, config: ToolConfig) !?*Step.Run {
         .pic = config.general.pic,
     });
 
-    if (root_module) {
-        const import = if (config.module) |m| m else module(b, config.options);
-        exe.root_module.addImport("pkmn", import);
-        if (detect(config.general.target).os.tag == .windows) {
-            exe.root_module.linkSystemLibrary("advapi32", .{});
-        }
-    } else {
-        exe.addModule("pkmn", module(b, config.options));
+    const import = if (config.module) |m| m else module(b, config.options);
+    exe.root_module.addImport("pkmn", import);
+    if (detect(config.general.target).os.tag == .windows) {
+        exe.root_module.linkSystemLibrary("advapi32", .{});
     }
 
-    if (force_pic) {
-        exe.single_threaded = true;
-        if (config.general.pic orelse false) exe.force_pic = config.general.pic;
-    }
     if (config.tool.tests) |ts| ts.step.dependOn(&exe.step);
     config.tool.exes.append(exe) catch @panic("OOM");
 
@@ -572,7 +462,7 @@ fn exists(path: []const u8) !bool {
 const ToolsStep = struct {
     step: std.Build.Step,
 
-    pub fn create(b: *std.Build, exes: *std.ArrayList(*Step.Compile)) *ToolsStep {
+    pub fn create(b: *std.Build, exes: *std.ArrayList(*std.Build.Step.Compile)) *ToolsStep {
         const self = b.allocator.create(ToolsStep) catch @panic("OOM");
         const step = std.Build.Step.init(.{ .id = .custom, .name = "Install tools", .owner = b });
         self.* = .{ .step = step };
@@ -582,8 +472,8 @@ const ToolsStep = struct {
 };
 
 fn detect(target: anytype) std.Target {
-    if (@hasField(@TypeOf(target), "result")) return target.result;
-    return (std.zig.system.NativeTargetInfo.detect(target) catch unreachable).target;
+    return target.result;
+    // return (std.zig.system.NativeTargetInfo.detect(target) catch unreachable).target;
 }
 
 pub fn exports(b: *std.Build, bytes: []const u8) ![][]const u8 {

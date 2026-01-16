@@ -36,9 +36,7 @@ generate:
 
 .PHONY: zig-lint
 zig-lint:
-	ziglint --exclude examples/zig/example.zig,\
-	examples/zig/legacy/example.zig,\
-	examples/zig/modern/example.zig
+	ziglint --exclude examples/zig/example.zig
 
 .PHONY: js-lint
 js-lint: node_modules
@@ -102,7 +100,7 @@ js-example: examples/js/node_modules
 
 .PHONY: zig-example
 zig-example:
-	cd examples/zig/$(shell zig run src/tools/version.zig); zig build --summary all run -- 1234
+	cd examples/zig; zig build --summary all run -- 1234
 
 .PHONY: example
 example: c-example js-example zig-example

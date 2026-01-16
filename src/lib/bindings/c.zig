@@ -5,9 +5,6 @@ const assert = std.debug.assert;
 
 const ERROR: u8 = 0b1100;
 
-const Enum = if (@hasField(std.builtin.Type, "enum")) .@"enum" else .Enum;
-const Strong = if (@hasField(std.builtin.GlobalLinkage, "strong")) .strong else .Strong;
-
 pub const OPTIONS: extern struct {
     showdown: bool,
     log: bool,
@@ -26,7 +23,7 @@ pub const MAX_LOGS = pkmn.MAX_LOGS;
 pub const LOGS_SIZE = pkmn.LOGS_SIZE;
 
 pub fn choice_init(choice: u8, data: u8) callconv(.C) u8 {
-    assert(choice <= @field(@typeInfo(pkmn.Choice.Type), @tagName(Enum)).fields.len);
+    assert(choice <= @field(@typeInfo(pkmn.Choice.Type), @tagName(.@"enum")).fields.len);
     assert(data <= 6);
     return @bitCast(pkmn.Choice{ .type = @enumFromInt(choice), .data = @intCast(data) });
 }
@@ -193,63 +190,11 @@ pub fn gen(comptime num: comptime_int) type {
             out: [*]u8,
             n: usize,
         ) callconv(.C) u8 {
-            assert(player <= @field(@typeInfo(pkmn.Player), @tagName(Enum)).fields.len);
-            assert(request <= @field(@typeInfo(pkmn.Choice.Type), @tagName(Enum)).fields.len);
+            assert(player <= @field(@typeInfo(pkmn.Player), @tagName(.@"enum")).fields.len);
+            assert(request <= @field(@typeInfo(pkmn.Choice.Type), @tagName(.@"enum")).fields.len);
 
             assert(!pkmn.options.showdown or n > 0);
             return battle.choices(@enumFromInt(player), @enumFromInt(request), @ptrCast(out[0..n]));
         }
     };
-}
-
-pub fn exports() type {
-    @export(choice_init, .{ .name = "pkmn_choice_init", .linkage = Strong });
-    @export(choice_type, .{ .name = "pkmn_choice_type", .linkage = Strong });
-    @export(choice_data, .{ .name = "pkmn_choice_data", .linkage = Strong });
-
-    @export(result_type, .{ .name = "pkmn_result_type", .linkage = Strong });
-    @export(result_p1, .{ .name = "pkmn_result_p1", .linkage = Strong });
-    @export(result_p2, .{ .name = "pkmn_result_p2", .linkage = Strong });
-
-    @export(err, .{ .name = "pkmn_error", .linkage = Strong });
-
-    @export(psrng_init, .{ .name = "pkmn_psrng_init", .linkage = Strong });
-    @export(psrng_next, .{ .name = "pkmn_psrng_next", .linkage = Strong });
-
-    @export(rational_init, .{ .name = "pkmn_rational_init", .linkage = Strong });
-    @export(rational_reduce, .{ .name = "pkmn_rational_reduce", .linkage = Strong });
-    @export(rational_numerator, .{ .name = "pkmn_rational_numerator", .linkage = Strong });
-    @export(rational_denominator, .{ .name = "pkmn_rational_denominator", .linkage = Strong });
-
-    @export(
-        gen(1).battle_options_set,
-        .{ .name = "pkmn_gen1_battle_options_set", .linkage = Strong },
-    );
-    @export(
-        gen(1).battle_options_chance_probability,
-        .{ .name = "pkmn_gen1_battle_options_chance_probability", .linkage = Strong },
-    );
-    @export(
-        gen(1).battle_options_chance_actions,
-        .{ .name = "pkmn_gen1_battle_options_chance_actions", .linkage = Strong },
-    );
-    @export(
-        gen(1).battle_options_chance_durations,
-        .{ .name = "pkmn_gen1_battle_options_chance_durations", .linkage = Strong },
-    );
-    @export(
-        gen(1).battle_options_calc_summaries,
-        .{ .name = "pkmn_gen1_battle_options_calc_summaries", .linkage = Strong },
-    );
-
-    @export(
-        gen(1).battle_update,
-        .{ .name = "pkmn_gen1_battle_update", .linkage = Strong },
-    );
-    @export(
-        gen(1).battle_choices,
-        .{ .name = "pkmn_gen1_battle_choices", .linkage = Strong },
-    );
-
-    return struct {};
 }

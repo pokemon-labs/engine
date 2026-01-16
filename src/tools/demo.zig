@@ -13,12 +13,9 @@ const js = struct {
     extern "js" fn panic(ptr: [*]const u8, len: usize) noreturn;
 };
 
-pub const std_options = if (@hasDecl(std, "Options")) std.Options{
+pub const std_options: std.Options = .{
     .logFn = log,
     .log_level = .debug,
-} else struct {
-    pub const logFn = log;
-    pub const log_level = .debug;
 };
 
 fn log(
@@ -134,8 +131,8 @@ const gen1 = struct {
 
                 var p2_dmg = Rolls.damage(f.p2, p2_hit);
 
-                const p1_min: u9 = p1_dmg.min;
-                const p2_min: u9 = p2_dmg.min;
+                const p1_min: u9 = @intCast(p1_dmg.min);
+                const p2_min: u9 = @intCast(p2_dmg.min);
 
                 while (p2_dmg.min < p2_dmg.max) : (p2_dmg.min += 1) {
                     a.p2.damage = @intCast(p2_dmg.min);
@@ -151,7 +148,7 @@ const gen1 = struct {
 
                     const summaries = &opts.calc.summaries;
                     const p1_max: u9 = if (p2_dmg.min != p2_min)
-                        p1_dmg.min
+                        @intCast(p1_dmg.min)
                     else
                         Rolls.coalesce(.P1, @as(u8, @intCast(p1_dmg.min)), summaries, cap);
                     const p2_max: u9 =
@@ -211,12 +208,8 @@ export const CALC = wasm.options.calc;
 export const GEN1_CHOICES_SIZE = wasm.gen(1).CHOICES_SIZE;
 export const GEN1_LOGS_SIZE = wasm.gen(1).LOGS_SIZE;
 
-const exportable = @hasDecl(std.zig, "Zir") and !@hasDecl(std.zig.Zir.Inst, "export_value");
-
-usingnamespace if (exportable) struct {
-    export const GEN1_update = wasm.gen(1).update;
-    export const GEN1_choices = wasm.gen(1).choices;
-} else wasm.exports();
+export const GEN1_update = wasm.gen(1).update;
+export const GEN1_choices = wasm.gen(1).choices;
 
 export fn GEN1_transitions(
     battle: *gen1.Battle(gen1.PRNG),

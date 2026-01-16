@@ -6,13 +6,6 @@ const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectError = std.testing.expectError;
 
-const Int = if (@hasField(std.builtin.Type, "int")) .int else .Int;
-const Float = if (@hasField(std.builtin.Type, "float")) .float else .Float;
-const ComptimeInt =
-    if (@hasField(std.builtin.Type, "comptime_int")) .comptime_int else .ComptimeInt;
-const ComptimeFloat =
-    if (@hasField(std.builtin.Type, "comptime_float")) .comptime_float else .ComptimeFloat;
-
 /// Specialization of a rational number used by the engine to compute probabilties.
 /// For performance reasons the rational is only reduced lazily and thus `reduce` must be
 /// invoked explicitly before reading. Note that this laziness means that this implementation
@@ -23,14 +16,14 @@ pub fn Rational(comptime T: type) type {
     // instead start reducing when we get sufficiently close to the limit of the mantissa
     // (in our domain we expect updates to involve numbers < 2**10, so we should be safe
     // not reducing before we are 2**10 away from "overflowing" the mantissa)
-    const o = if (@typeInfo(T) == Float)
+    const o = if (@typeInfo(T) == .float)
         std.math.pow(T, 2, std.math.floatMantissaBits(T) - 10)
     else
         0;
 
     const Err = switch (@typeInfo(T)) {
-        Int => error{Overflow},
-        Float => error{},
+        .int => error{Overflow},
+        .float => error{},
         else => unreachable,
     };
 
@@ -150,12 +143,12 @@ fn update_(comptime T: type, comptime o: comptime_int, r: anytype, p: anytype, q
     // If our parameters are not fully reduced they may prematurely
     // cause overflow/loss of precision after the multiplication below
     assert(switch (@typeInfo(@TypeOf(p, q))) {
-        ComptimeInt, ComptimeFloat => comptime gcd(p, q),
+        .comptime_int, .comptime_float => comptime gcd(p, q),
         else => 1,
     } == 1);
 
     switch (@typeInfo(T)) {
-        Int => {
+        .int => {
             // Greedily attempt to multiply and if it fails, reduce and try again
             multiplication(T, r, p, q) catch |err| switch (err) {
                 error.Overflow => {
@@ -165,16 +158,16 @@ fn update_(comptime T: type, comptime o: comptime_int, r: anytype, p: anytype, q
                 else => unreachable,
             };
         },
-        Float => {
+        .float => {
             // Reduce in situations where we're likely to start losing precision
             if (r.q > o or r.p > o) r.reduce();
 
             r.p *= switch (@typeInfo(@TypeOf(p))) {
-                Float, ComptimeFloat => p,
+                .float, .comptime_float => p,
                 else => @floatFromInt(p),
             };
             r.q *= switch (@typeInfo(@TypeOf(q))) {
-                Float, ComptimeFloat => q,
+                .float, .comptime_float => q,
                 else => @floatFromInt(q),
             };
 
@@ -188,7 +181,7 @@ fn update_(comptime T: type, comptime o: comptime_int, r: anytype, p: anytype, q
 
 fn add_(comptime T: type, comptime o: comptime_int, r: anytype, s: anytype) !void {
     switch (@typeInfo(T)) {
-        Int => {
+        .int => {
             if (r.q == s.q) {
                 r.p = std.math.add(T, r.p, s.p) catch |err| switch (err) {
                     error.Overflow => val: {
@@ -209,7 +202,7 @@ fn add_(comptime T: type, comptime o: comptime_int, r: anytype, s: anytype) !voi
                 };
             }
         },
-        Float => {
+        .float => {
             if (r.q == s.q) {
                 if (r.p > o) r.reduce();
                 if (s.p > o) s.reduce();
@@ -233,7 +226,7 @@ fn add_(comptime T: type, comptime o: comptime_int, r: anytype, s: anytype) !voi
 
 fn mul_(comptime T: type, comptime o: comptime_int, r: anytype, s: anytype) !void {
     switch (@typeInfo(T)) {
-        Int => {
+        .int => {
             multiplication(T, r, s.p, s.q) catch |err| switch (err) {
                 error.Overflow => {
                     r.reduce();
@@ -243,7 +236,7 @@ fn mul_(comptime T: type, comptime o: comptime_int, r: anytype, s: anytype) !voi
                 else => unreachable,
             };
         },
-        Float => {
+        .float => {
             if (r.q > o or r.p > o) r.reduce();
             if (s.q > o or s.p > o) s.reduce();
 
@@ -259,7 +252,7 @@ fn mul_(comptime T: type, comptime o: comptime_int, r: anytype, s: anytype) !voi
 
 fn cmp_(comptime T: type, comptime o: comptime_int, r: anytype, s: anytype) !std.math.Order {
     switch (@typeInfo(T)) {
-        Int => {
+        .int => {
             const ad = std.math.mul(T, r.p, s.q) catch |err| switch (err) {
                 error.Overflow => ad: {
                     r.reduce();
@@ -279,7 +272,7 @@ fn cmp_(comptime T: type, comptime o: comptime_int, r: anytype, s: anytype) !std
 
             return std.math.order(ad, bc);
         },
-        Float => {
+        .float => {
             if (r.q > o or r.p > o) r.reduce();
             if (s.q > o or s.p > o) s.reduce();
 
@@ -332,7 +325,7 @@ fn gcd(p: anytype, q: anytype) @TypeOf(p, q) {
     };
 
     switch (@typeInfo(T)) {
-        Int => {
+        .int => {
             // std.math.gcd but without some checks because we have a stricter range
             var x: T = @intCast(p);
             var y: T = @intCast(q);
@@ -373,8 +366,7 @@ fn gcd(p: anytype, q: anytype) @TypeOf(p, q) {
 }
 
 test gcd {
-    const seed = if (@hasDecl(std.testing, "random_seed")) std.testing.random_seed else 0x12345678;
-    var prng = (if (@hasDecl(std, "Random")) std.Random else std.rand).DefaultPrng.init(seed);
+    var prng = std.Random.DefaultPrng.init(std.testing.random_seed);
     var random = prng.random();
 
     for (0..1000) |_| {

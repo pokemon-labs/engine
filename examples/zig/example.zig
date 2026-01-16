@@ -24,7 +24,7 @@ pub fn main() !void {
     };
 
     // Use Zig's system PRNG (`pkmn.PSRNG` is another option with a slightly different API)
-    var prng = (if (@hasDecl(std, "Random")) std.Random else std.rand).DefaultPrng.init(seed);
+    var prng = std.Random.DefaultPrng.init(seed);
     var random = prng.random();
     // Preallocate a small buffer for the choice options throughout the battle
     var choices: [pkmn.CHOICES_SIZE]pkmn.Choice = undefined;

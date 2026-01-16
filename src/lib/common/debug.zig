@@ -3,19 +3,9 @@ const std = @import("std");
 const debug = std.debug;
 const io = std.io;
 
-const Array = if (@hasField(std.builtin.Type, "array")) .array else .Array;
-const Enum = if (@hasField(std.builtin.Type, "enum")) .@"enum" else .Enum;
-const Optional = if (@hasField(std.builtin.Type, "optional")) .optional else .Optional;
-const Pointer = if (@hasField(std.builtin.Type, "pointer")) .pointer else .Pointer;
-const Struct = if (@hasField(std.builtin.Type, "struct")) .@"struct" else .Struct;
-const Union = if (@hasField(std.builtin.Type, "union")) .@"union" else .Union;
-
 pub fn print(value: anytype) void {
-    if (@hasDecl(debug, "lockStdErr")) debug.lockStdErr() else debug.getStderrMutex().lock();
-    defer if (@hasDecl(debug, "unlockStdErr"))
-        debug.unlockStdErr()
-    else
-        debug.getStderrMutex().unlock();
+    debug.lockStdErr();
+    defer debug.unlockStdErr();
     const stderr = io.getStdErr().writer();
 
     nosuspend {
@@ -29,7 +19,7 @@ pub fn print(value: anytype) void {
             }) catch return;
         } else {
             switch (@typeInfo(@TypeOf(value))) {
-                Struct => |info| {
+                .@"struct" => |info| {
                     if (info.is_tuple) {
                         inline for (info.fields, 0..) |f, i| {
                             inspect(@field(value, f.name));
@@ -52,32 +42,32 @@ fn inspect(value: anytype) void {
     nosuspend {
         const err = "Unable to format type '" ++ @typeName(@TypeOf(value)) ++ "'";
         switch (@typeInfo(@TypeOf(value))) {
-            Array => |info| {
+            .array => |info| {
                 if (info.child == u8) return stderr.print("{s}", .{value}) catch return;
                 @compileError(err);
             },
-            Pointer => |ptr_info| switch (ptr_info.size) {
-                .One => switch (@typeInfo(ptr_info.child)) {
-                    Array => |info| {
+            .pointer => |ptr_info| switch (ptr_info.size) {
+                .one => switch (@typeInfo(ptr_info.child)) {
+                    .array => |info| {
                         if (info.child == u8) return stderr.print("{s}", .{value}) catch return;
                         @compileError(err);
                     },
-                    Enum, Union, Struct => return inspect(value.*),
+                    .@"enum", .@"union", .@"struct" => return inspect(value.*),
                     else => @compileError(err),
                 },
-                .Many, .C => {
+                .many, .c => {
                     if (ptr_info.sentinel) |_| return inspect(std.mem.span(value));
                     if (ptr_info.child == u8) {
                         return stderr.print("{s}", .{std.mem.span(value)}) catch return;
                     }
                     @compileError(err);
                 },
-                .Slice => {
+                .slice => {
                     if (ptr_info.child == u8) return stderr.print("{s}", .{value}) catch return;
                     @compileError(err);
                 },
             },
-            Optional => stderr.print("{?}", .{value}) catch return,
+            .optional => stderr.print("{?}", .{value}) catch return,
             else => stderr.print("{}", .{value}) catch return,
         }
     }

@@ -68,8 +68,6 @@ const P2 = Player.P2;
 var choices: [CHOICES_SIZE]Choice = undefined;
 const forced = move(@intFromBool(showdown));
 
-const Struct = if (@hasField(std.builtin.Type, "struct")) .@"struct" else .Struct;
-
 // General
 
 test "start (first fainted)" {
@@ -5828,7 +5826,7 @@ test "Transform effect" {
     try expectEqual(t.actual.p2.active.types, t.actual.p1.active.types);
     try expectEqual(@as(u8, 50), t.actual.p1.get(1).level);
 
-    inline for (@field(@typeInfo(@TypeOf(t.actual.p1.get(1).stats)), @tagName(Struct)).fields) |f| {
+    inline for (@typeInfo(@TypeOf(t.actual.p1.get(1).stats)).@"struct".fields) |f| {
         if (!std.mem.eql(u8, f.name, "hp")) {
             try expectEqual(
                 @field(t.actual.p2.active.stats, f.name),
@@ -5879,7 +5877,7 @@ test "Transform effect" {
     try expectEqual(Result.Default, try t.update(move(1), move(1)));
     try t.expectProbability(1, 2);
 
-    inline for (@field(@typeInfo(@TypeOf(t.actual.p1.get(1).stats)), @tagName(Struct)).fields) |f| {
+    inline for (@typeInfo(@TypeOf(t.actual.p1.get(1).stats)).@"struct".fields) |f| {
         if (!std.mem.eql(u8, f.name, "hp")) {
             try expectEqual(
                 @field(t.actual.p2.active.stats, f.name),
@@ -5910,7 +5908,7 @@ test "Transform effect" {
 
     try expectEqual(Result.Default, try t.update(move(1), move(1)));
     try t.expectProbability(1, 1);
-    inline for (@field(@typeInfo(@TypeOf(t.actual.p1.get(1).stats)), @tagName(Struct)).fields) |f| {
+    inline for (@typeInfo(@TypeOf(t.actual.p1.get(1).stats)).@"struct".fields) |f| {
         if (!std.mem.eql(u8, f.name, "hp")) {
             try expectEqual(
                 @field(t.actual.p2.active.stats, f.name),
@@ -10390,7 +10388,7 @@ test "RNG overrides" {
 test "transitions" {
     if (!pkmn.options.calc or !pkmn.options.chance) return error.SkipZigTest;
 
-    const seed = if (@hasDecl(std.testing, "random_seed")) std.testing.random_seed else 0x12345678;
+    const seed = std.testing.random_seed;
     var battle = Battle.init(
         seed,
         &.{.{ .species = .Charmander, .hp = 5, .level = 5, .stats = .{}, .moves = &.{.Scratch} }},

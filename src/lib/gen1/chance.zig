@@ -23,10 +23,6 @@ const PointerType = util.PointerType;
 const print = std.debug.print;
 const showdown = options.showdown;
 
-const Int = if (@hasField(std.builtin.Type, "int")) .int else .Int;
-const Enum = if (@hasField(std.builtin.Type, "enum")) .@"enum" else .Enum;
-const Struct = if (@hasField(std.builtin.Type, "struct")) .@"struct" else .Struct;
-
 /// Actions taken by a hypothetical "chance player" that convey information about which RNG events
 /// were observed during a Generation I battle `update`. This can additionally be provided as input
 /// to the `update` call to override the normal behavior of the RNG in order to force specific
@@ -56,15 +52,15 @@ pub const Actions = extern struct {
     /// same shape if they have the same fields set (though those fields need not necessarily be
     /// set to the same value).
     pub fn matches(a: Actions, b: Actions) bool {
-        inline for (@field(@typeInfo(Actions), @tagName(Struct)).fields) |player| {
-            inline for (@field(@typeInfo(Action), @tagName(Struct)).fields) |field| {
+        inline for (@typeInfo(Actions).@"struct".fields) |player| {
+            inline for (@typeInfo(Action).@"struct".fields) |field| {
                 const a_val = @field(@field(a, player.name), field.name);
                 const b_val = @field(@field(b, player.name), field.name);
 
                 switch (@typeInfo(@TypeOf(a_val))) {
-                    Enum => if ((@intFromEnum(a_val) > 0) != (@intFromEnum(b_val) > 0))
+                    .@"enum" => if ((@intFromEnum(a_val) > 0) != (@intFromEnum(b_val) > 0))
                         return false,
-                    Int => if ((a_val > 0) != (b_val > 0)) return false,
+                    .int => if ((a_val > 0) != (b_val > 0)) return false,
                     else => unreachable,
                 }
             }
@@ -199,10 +195,10 @@ pub const Action = packed struct(u64) {
     pub fn fmt(self: Action, writer: anytype, shape: bool) !void {
         try writer.writeByte('(');
         var printed = false;
-        inline for (@field(@typeInfo(Action), @tagName(Struct)).fields) |field| {
+        inline for (@typeInfo(Action).@"struct".fields) |field| {
             const val = @field(self, field.name);
             switch (@typeInfo(@TypeOf(val))) {
-                Enum => if (val != .None) {
+                .@"enum" => if (val != .None) {
                     if (printed) try writer.writeAll(", ");
                     if (shape) {
                         try writer.print("{s}:?", .{field.name});
@@ -223,7 +219,7 @@ pub const Action = packed struct(u64) {
                     }
                     printed = true;
                 },
-                Int => if (val != 0) {
+                .int => if (val != 0) {
                     if (printed) try writer.writeAll(", ");
                     if (shape) {
                         try writer.print("{s}:?", .{field.name});
@@ -288,10 +284,10 @@ pub const Duration = packed struct(u32) {
         _ = .{ fmt, opts };
         try writer.writeByte('(');
         var printed = false;
-        inline for (@field(@typeInfo(Duration), @tagName(Struct)).fields) |field| {
+        inline for (@typeInfo(Duration).@"struct".fields) |field| {
             const val = @field(self, field.name);
             switch (@typeInfo(@TypeOf(val))) {
-                Int => if (val != 0) {
+                .int => if (val != 0) {
                     if (printed) try writer.writeAll(", ");
                     if (comptime std.mem.eql(u8, field.name, "sleeps")) {
                         try writer.print("{s}:[", .{field.name});

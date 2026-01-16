@@ -15,9 +15,6 @@ const isPointerTo = util.isPointerTo;
 const Player = common.Player;
 const PointerType = util.PointerType;
 
-const Int = if (@hasField(std.builtin.Type, "int")) .int else .Int;
-const Enum = if (@hasField(std.builtin.Type, "enum")) .@"enum" else .Enum;
-
 /// Information relevant to damage calculation that occured during a Generation II battle `update`.
 pub const Summaries = extern struct {
     /// Relevant information for Player 1.
@@ -91,8 +88,8 @@ pub const Calc = struct {
         };
 
         return if (switch (@typeInfo(@TypeOf(val))) {
-            Enum => val != .None,
-            Int => val != 0,
+            .@"enum" => val != .None,
+            .int => val != 0,
             else => unreachable,
         }) val else null;
     }
@@ -148,6 +145,6 @@ fn ReturnType(comptime field: Action.Field) type {
     return ?(switch (field) {
         .damages => u8,
         .critical_hits => Optional(bool),
-        else => util.FieldType(Action, field),
+        else => @FieldType(Action, @tagName(field)),
     });
 }

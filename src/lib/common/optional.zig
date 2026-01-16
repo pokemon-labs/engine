@@ -3,12 +3,10 @@ const std = @import("std");
 const expect = std.testing.expect;
 const assert = std.debug.assert;
 
-const Bool = if (@hasField(std.builtin.Type, "bool")) .bool else .Bool;
-
 // TODO: ziglang/zig#104
 pub fn Optional(comptime T: type) type {
     const fields = std.meta.fields(switch (@typeInfo(T)) {
-        Bool => enum { false, true },
+        .bool => enum { false, true },
         else => T,
     });
 
@@ -31,10 +29,7 @@ pub fn Optional(comptime T: type) type {
         .decls = &decls,
         .is_exhaustive = true,
     };
-    return @Type(if (@hasField(std.builtin.Type, "enum"))
-        .{ .@"enum" = options }
-    else
-        .{ .Enum = options });
+    return @Type(.{ .@"enum" = options });
 }
 
 test Optional {

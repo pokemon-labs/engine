@@ -3,19 +3,13 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const assert = std.debug.assert;
 
-const Int = if (@hasField(std.builtin.Type, "int")) .int else .Int;
-const Enum = if (@hasField(std.builtin.Type, "enum")) .@"enum" else .Enum;
-
 /// Helpers for working with bit-packed arrays of non-powers-of-2 types.
 /// NOTE: ziglang/zig#12547
 pub fn Array(comptime n: comptime_int, comptime U: type) type {
     return struct {
         const size = @bitSizeOf(U);
         const options: std.builtin.Type.Int = .{ .signedness = .unsigned, .bits = size * n };
-        pub const T = @Type(if (@hasField(std.builtin.Type, "int"))
-            .{ .int = options }
-        else
-            .{ .Int = options });
+        pub const T = @Type(.{ .int = options });
 
         /// Returns the value stored at index `i` in the array `a`.
         pub fn get(a: T, i: usize) U {
@@ -24,8 +18,8 @@ pub fn Array(comptime n: comptime_int, comptime U: type) type {
             const mask: T = (1 << size) - 1;
             const result = (a >> @intCast(shift)) & mask;
             return switch (@typeInfo(U)) {
-                Enum => @enumFromInt(result),
-                Int => @intCast(result),
+                .@"enum" => @enumFromInt(result),
+                .int => @intCast(result),
                 else => unreachable,
             };
         }
@@ -34,8 +28,8 @@ pub fn Array(comptime n: comptime_int, comptime U: type) type {
         pub fn set(a: T, i: usize, val: U) T {
             assert(i < n);
             const v: T = switch (@typeInfo(U)) {
-                Enum => @intFromEnum(val),
-                Int => @intCast(val),
+                .@"enum" => @intFromEnum(val),
+                .int => @intCast(val),
                 else => unreachable,
             };
             const shift = i * size;

@@ -3,9 +3,6 @@ const std = @import("std");
 
 const assert = std.debug.assert;
 
-const Enum = if (@hasField(std.builtin.Type, "enum")) .@"enum" else .Enum;
-const Strong = if (@hasField(std.builtin.GlobalLinkage, "strong")) .strong else .Strong;
-
 pub const options = pkmn.options;
 
 pub fn gen(comptime num: comptime_int) type {
@@ -39,19 +36,13 @@ pub fn gen(comptime num: comptime_int) type {
             request: u8,
             buf: [*]u8,
         ) callconv(.C) u8 {
-            assert(player <= @field(@typeInfo(pkmn.Player), @tagName(Enum)).fields.len);
-            assert(request <= @field(@typeInfo(pkmn.Choice.Type), @tagName(Enum)).fields.len);
+            assert(player <= @field(@typeInfo(pkmn.Player), @tagName(.@"enum")).fields.len);
+            assert(request <= @field(@typeInfo(pkmn.Choice.Type), @tagName(.@"enum")).fields.len);
 
             const n = CHOICES_SIZE;
             return battle.choices(@enumFromInt(player), @enumFromInt(request), @ptrCast(buf[0..n]));
         }
     };
-}
-
-pub fn exports() type {
-    @export(gen(1).update, .{ .name = "GEN1_update", .linkage = Strong });
-    @export(gen(1).choices, .{ .name = "GEN1_choices", .linkage = Strong });
-    return struct {};
 }
 
 fn size(n: usize) u32 {
