@@ -309,9 +309,8 @@ pub const Weather = enum(u8) {
     Upkeep,
 };
 
-/// Null object pattern implementation of `Log` backed by a `std.io.null_writer`.
-/// Ignores anything sent to it, though protocol logging should additionally be turned off
-/// entirely with `options.log`.
+/// Null object pattern implementation of `Log` backed by a null writer. Ignores anything sent to
+/// it, though protocol logging should additionally be turned off entirely with `options.log`.
 pub const NULL = Log(@TypeOf(std.io.null_writer)){ .writer = std.io.null_writer };
 
 /// Logs protocol information to its `Writer` during a battle update when `options.log` is enabled.
@@ -816,8 +815,8 @@ pub fn Log(comptime Writer: type) type {
 pub const FixedLog = Log(ByteStream.Writer);
 
 /// Stripped down version of `std.io.FixedBufferStream` optimized for efficiently writing the
-/// individual protocol bytes. Note that the `ByteStream.Writer` is **not** a `std.io.Writer` and
-/// should not be used for general purpose writing.
+/// individual protocol bytes. Note that the `ByteStream.Writer` is **not** a `std.io.Writer`
+/// and should not be used for general purpose writing.
 pub const ByteStream = struct {
     buffer: []u8,
     pos: usize = 0,

@@ -3,7 +3,8 @@ const std = @import("std");
 const expect = std.testing.expect;
 const assert = std.debug.assert;
 
-// TODO: ziglang/zig#104
+/// Optimized optional representation which stores the empty None value as a sentinel.
+/// NOTE: ziglang/zig#104
 pub fn Optional(comptime T: type) type {
     const fields = std.meta.fields(switch (@typeInfo(T)) {
         .bool => enum { false, true },
