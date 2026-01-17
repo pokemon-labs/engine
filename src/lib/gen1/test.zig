@@ -10,6 +10,7 @@ const protocol = @import("../common/protocol.zig");
 const rational = @import("../common/rational.zig");
 const rng = @import("../common/rng.zig");
 const std = @import("std");
+const util = @import("../common/util.zig");
 
 const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
@@ -133,8 +134,8 @@ test "start (all fainted)" {
 test "switching (order)" {
     var battle = Battle.init(
         0x12345678,
-        &[_]Pokemon{.{ .species = .Abra, .moves = &.{.Teleport} }} ** 6,
-        &[_]Pokemon{.{ .species = .Gastly, .moves = &.{.Lick} }} ** 6,
+        &@as([6]Pokemon, @splat(.{ .species = .Abra, .moves = &.{.Teleport} })),
+        &@as([6]Pokemon, @splat(.{ .species = .Gastly, .moves = &.{.Lick} })),
     );
     battle.turn = 1;
     const p1 = battle.side(.P1);
@@ -6864,6 +6865,7 @@ test "Hyper Beam + Substitute bug" {
     try t.verify();
 }
 
+//                 .{ HIT, 1 } ++ @as([30]U, @splat(.{ ~CRIT, HIT }),
 test "Mimic infinite PP bug" {
     // Mimic first
     {
@@ -6871,7 +6873,7 @@ test "Mimic infinite PP bug" {
             if (showdown)
                 .{ HIT, MAX }
             else
-                .{ HIT, 1 } ++ .{ ~CRIT, HIT } ** 15,
+                .{ HIT, 1 } ++ util.repeat(.{ ~CRIT, HIT }, 15),
             &.{.{ .species = .Gengar, .moves = &.{ .Splash, .MegaKick } }},
             &.{
                 .{ .species = .Gengar, .level = 99, .moves = &.{ .Mimic, .MegaKick, .Splash } },
@@ -6906,7 +6908,7 @@ test "Mimic infinite PP bug" {
             if (showdown)
                 .{ HIT, MAX }
             else
-                .{ HIT, 1 } ++ .{ ~CRIT, HIT } ** 15,
+                .{ HIT, 1 } ++ util.repeat(.{ ~CRIT, HIT }, 15),
             &.{.{ .species = .Gengar, .moves = &.{ .Splash, .MegaKick } }},
             &.{
                 .{ .species = .Gengar, .level = 99, .moves = &.{ .MegaKick, .Mimic, .Splash } },
@@ -10074,10 +10076,12 @@ test "MIN_CHANCE" {
 
     var t = Test(if (showdown)
         .{ TIE_1, PAR_CAN, HIT, CFZ_5, CFZ_CAN, PAR_CAN, HIT, CFZ_5, TIE_1 } ++
-            .{ CFZ_CAN, PAR_CAN, rollingKick, HIT, ~CRIT, MIN_DMG, NO_FLINCH } ** 2
+            util.repeat(.{ CFZ_CAN, PAR_CAN, rollingKick, HIT, ~CRIT, MIN_DMG, NO_FLINCH }, 2)
     else
         .{ TIE_1, PAR_CAN, HIT, CFZ_5, CFZ_CAN, PAR_CAN, HIT, CFZ_5, TIE_1 } ++
-            .{ CFZ_CAN, PAR_CAN, ~CRIT, rollingKick, ~CRIT, MIN_DMG, HIT, NO_FLINCH } ** 2).init(
+            util.repeat(.{
+                CFZ_CAN, PAR_CAN, ~CRIT, rollingKick, ~CRIT, MIN_DMG, HIT, NO_FLINCH,
+            }, 2)).init(
         &.{.{ .species = .Hitmonlee, .status = PAR, .moves = &.{ .ConfuseRay, .Metronome } }},
         &.{.{ .species = .Hitmonlee, .status = PAR, .moves = &.{ .ConfuseRay, .Metronome } }},
     );

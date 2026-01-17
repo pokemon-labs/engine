@@ -26,3 +26,19 @@ test isPointerTo {
     try expect(!isPointerTo(s, S));
     try expect(isPointerTo(&s, S));
 }
+
+pub fn repeat(comptime xs: anytype, comptime n: usize) [xs.len * n]@TypeOf(xs[0]) {
+    comptime {
+        const T = @TypeOf(xs[0]);
+        var ts: [xs.len * n]T = undefined;
+
+        var i: usize = 0;
+        while (i < n) : (i += 1) {
+            for (xs, 0..) |v, j| {
+                ts[i * xs.len + j] = v;
+            }
+        }
+
+        return ts;
+    }
+}
