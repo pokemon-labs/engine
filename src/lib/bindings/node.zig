@@ -1,4 +1,4 @@
-const c = @import("../common/napi.zig");
+const c = @import("napi");
 const js = @import("../common/js.zig");
 const pkmn = @import("../pkmn.zig");
 const std = @import("std");

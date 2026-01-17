@@ -94,6 +94,12 @@ pub fn build(b: *std.Build) !void {
 
     var c = false;
     if (node_headers) |headers| {
+        const translate_c = b.addTranslateC(.{
+            .root_source_file = b.path("src/lib/napi.h"),
+            .target = target,
+            .optimize = optimize,
+        });
+        translate_c.addSystemIncludePath(b.path(headers));
         const addon = b.fmt("{s}.node", .{name});
         const path = b.path("src/lib/node.zig");
         const lib = b.addSharedLibrary(.{
@@ -105,7 +111,7 @@ pub fn build(b: *std.Build) !void {
             .pic = pic,
         });
         lib.root_module.addOptions("build_options", options);
-        lib.addSystemIncludePath(b.path(headers));
+        lib.root_module.addImport("napi", translate_c.createModule());
         lib.linkLibC();
         if (node_import_lib) |il| {
             lib.addObjectFile(b.path(il));
