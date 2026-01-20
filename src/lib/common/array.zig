@@ -8,8 +8,7 @@ const assert = std.debug.assert;
 pub fn Array(comptime n: comptime_int, comptime U: type) type {
     return struct {
         const size = @bitSizeOf(U);
-        const options: std.builtin.Type.Int = .{ .signedness = .unsigned, .bits = size * n };
-        pub const T = @Type(.{ .int = options });
+        pub const T = @Int(.unsigned, size * n);
 
         /// Returns the value stored at index `i` in the array `a`.
         pub fn get(a: T, i: usize) U {

@@ -311,7 +311,7 @@ pub const Weather = enum(u8) {
 
 /// Null object pattern implementation of `Log` backed by a null writer. Ignores anything sent to
 /// it, though protocol logging should additionally be turned off entirely with `options.log`.
-pub const NULL = Log(@TypeOf(std.io.null_writer)){ .writer = std.io.null_writer };
+pub const NULL = Log(NullWriter){ .writer = .{} };
 
 /// Logs protocol information to its `Writer` during a battle update when `options.log` is enabled.
 pub fn Log(comptime Writer: type) type {
@@ -814,9 +814,9 @@ pub fn Log(comptime Writer: type) type {
 /// `Log` type backed by the optimized `ByteStream.Writer`.
 pub const FixedLog = Log(ByteStream.Writer);
 
-/// Stripped down version of `std.io.FixedBufferStream` optimized for efficiently writing the
-/// individual protocol bytes. Note that the `ByteStream.Writer` is **not** a `std.io.Writer`
-/// and should not be used for general purpose writing.
+/// Minimal logging helper optimized for efficiently writing the individual protocol bytes into a
+/// fixed buffer. Note that the `ByteStream.Writer` is **not** a `std.Io.Writer` and should not be
+/// used for general purpose writing.
 pub const ByteStream = struct {
     buffer: []u8,
     pos: usize = 0,
@@ -826,19 +826,25 @@ pub const ByteStream = struct {
 
         pub const Error = error{NoSpaceLeft};
 
-        pub fn writeAll(self: Writer, bytes: []const u8) Error!void {
-            for (bytes) |b| try self.writeByte(b);
+        pub fn writeByte(self: Writer, byte: u8) Error!void {
+            if (self.stream.pos >= self.stream.buffer.len) return error.NoSpaceLeft;
+            self.stream.buffer[self.stream.pos] = byte;
+            self.stream.pos += 1;
         }
 
-        pub fn writeByte(self: Writer, byte: u8) Error!void {
-            try self.stream.writeByte(byte);
+        pub fn writeAll(self: Writer, bytes: []const u8) Error!void {
+            const npos = self.stream.pos + bytes.len;
+            if (npos > self.stream.buffer.len) return error.NoSpaceLeft;
+            @memcpy(self.stream.buffer[self.stream.pos..npos], bytes);
+            self.stream.pos = npos;
         }
 
         pub fn writeInt(self: Writer, comptime T: type, v: T, end: std.builtin.Endian) Error!void {
-            // TODO: rework this to write directly to the buffer?
-            var bytes: [@divExact(@field(@typeInfo(T), @tagName(.int)).bits, 8)]u8 = undefined;
-            std.mem.writeInt(std.math.ByteAlignedInt(@TypeOf(v)), &bytes, v, end);
-            return self.writeAll(&bytes);
+            const bytes = @divExact(@typeInfo(T).int.bits, 8);
+            const npos = self.stream.pos + bytes;
+            if (npos > self.stream.buffer.len) return error.NoSpaceLeft;
+            std.mem.writeInt(T, self.stream.buffer[self.stream.pos..][0..bytes], v, end);
+            self.stream.pos = npos;
         }
     };
 
@@ -846,14 +852,24 @@ pub const ByteStream = struct {
         return .{ .stream = self };
     }
 
-    pub fn writeByte(self: *ByteStream, byte: u8) Writer.Error!void {
-        if (self.pos >= self.buffer.len) return error.NoSpaceLeft;
-        self.buffer[self.pos] = byte;
-        self.pos += 1;
-    }
-
     pub fn reset(self: *ByteStream) void {
         self.pos = 0;
+    }
+};
+
+const NullWriter = struct {
+    pub const Error = error{};
+
+    pub fn writeByte(self: NullWriter, byte: u8) Error!void {
+        _ = .{ self, byte };
+    }
+
+    pub fn writeAll(self: NullWriter, bytes: []const u8) Error!void {
+        _ = .{ self, bytes };
+    }
+
+    pub fn writeInt(self: NullWriter, comptime T: type, v: T, end: std.builtin.Endian) Error!void {
+        _ = .{ self, T, v, end };
     }
 };
 

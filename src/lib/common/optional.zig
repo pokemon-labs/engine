@@ -11,26 +11,20 @@ pub fn Optional(comptime T: type) type {
         else => T,
     });
 
-    var enumFields: [fields.len + 1]std.builtin.Type.EnumField = undefined;
-    var decls = [_]std.builtin.Type.Declaration{};
+    const tagType = std.math.IntFittingRange(0, fields.len);
+    var fieldNames: [fields.len + 1][]const u8 = undefined;
+    var fieldValues: [fields.len + 1]tagType = undefined;
 
-    enumFields[0] = .{ .name = "None", .value = 0 };
+    fieldNames[0] = "None";
+    fieldValues[0] = 0;
 
     inline for (fields, 1..) |field, i| {
         assert(!std.mem.eql(u8, field.name, "None"));
-        enumFields[i] = .{
-            .name = field.name,
-            .value = i,
-        };
+        fieldNames[i] = field.name;
+        fieldValues[i] = i;
     }
 
-    const options: std.builtin.Type.Enum = .{
-        .tag_type = std.math.IntFittingRange(0, fields.len),
-        .fields = &enumFields,
-        .decls = &decls,
-        .is_exhaustive = true,
-    };
-    return @Type(.{ .@"enum" = options });
+    return @Enum(tagType, .exhaustive, &fieldNames, &fieldValues);
 }
 
 test Optional {
