@@ -19,16 +19,16 @@ pub fn main(init: std.process.Init) !void {
     const index = std.mem.indexOfScalar(u8, arg, '/');
     if (index) |i| {
         warmup = std.fmt.parseUnsigned(usize, arg[0..i], 10) catch
-            errorAndExit(&err.interface,"warmup", args[2], args[0]);
-        if (warmup.? == 0) errorAndExit(&err.interface,"warmup", args[2], args[0]);
+            errorAndExit(&err.interface, "warmup", args[2], args[0]);
+        if (warmup.? == 0) errorAndExit(&err.interface, "warmup", args[2], args[0]);
         arg = arg[(i + 1)..arg.len];
     }
     const battles = std.fmt.parseUnsigned(usize, arg, 10) catch
-        errorAndExit(&err.interface,"battles", args[2], args[0]);
-    if (battles == 0) errorAndExit(&err.interface,"battles", args[2], args[0]);
+        errorAndExit(&err.interface, "battles", args[2], args[0]);
+    if (battles == 0) errorAndExit(&err.interface, "battles", args[2], args[0]);
 
     const seed = if (args.len > 3) std.fmt.parseUnsigned(u64, args[3], 0) catch
-        errorAndExit(&err.interface,"seed", args[3], args[0]) else seed: {
+        errorAndExit(&err.interface, "seed", args[3], args[0]) else seed: {
         var secret: [std.Random.DefaultCsprng.secret_seed_length]u8 = undefined;
         init.io.random(&secret);
         var csprng = std.Random.DefaultCsprng.init(secret);

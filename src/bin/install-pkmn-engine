@@ -10,7 +10,7 @@ const path = require('path');
 const {pipeline} = require('stream/promises');
 const tty = require('tty');
 
-const ZIG_VERSION = {major: 0, minor: 16, patch: 0, dev: '2193+fc517bd01'};
+const ZIG_VERSION = {major: 0, minor: 16, patch: 0, dev: '2212+3da6e6719'};
 const DEV = ZIG_VERSION.dev ? `-dev.${ZIG_VERSION.dev}` : '';
 const VERSION = `${ZIG_VERSION.major}.${ZIG_VERSION.minor}.${ZIG_VERSION.patch}${DEV}`;
 const INDEX = 'https://ziglang.org/download/index.json';
@@ -135,7 +135,7 @@ const find = zig => {
     const compatible = major > ZIG_VERSION.major ||
       (major >= ZIG_VERSION.major && minor > ZIG_VERSION.minor) ||
       (major >= ZIG_VERSION.major && minor >= ZIG_VERSION.minor && patch >= ZIG_VERSION.patch &&
-        (!ZIG_VERSION.dev || (dev && dev >= ZIG_VERSION.dev)));
+        (!ZIG_VERSION.dev || (dev && dev >= parseInt(ZIG_VERSION.dev))));
 
     if (compatible) {
       log('Found existing compatible Zig executable:', zig_exe);

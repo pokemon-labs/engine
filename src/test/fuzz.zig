@@ -16,8 +16,8 @@ const Frame = struct {
 var gen: u8 = 0;
 var last: ?u64 = null;
 var initial: []u8 = &.{};
-var buf: ?std.ArrayList(u8) = null;
-var frames: ?std.ArrayList(Frame) = null;
+var writer: ?std.Io.Writer.Allocating = null;
+var frames: ?std.array_list.Aligned(Frame, null) = null;
 
 const transitions = true; // DEBUG
 
@@ -61,39 +61,39 @@ pub fn main(init: std.process.Init) !void {
 
         try fuzz(allocator, seed, duration);
     } else {
-        const stdin = std.io.getStdIn();
-        var reader = std.io.bufferedReader(stdin.reader());
-        var r = reader.reader();
+        var in: [4096]u8 = undefined;
+        var stdin = std.Io.File.stdin().reader(init.io, &in);
+        var r = &stdin.interface;
 
-        if (try r.readByte() != @intFromBool(showdown)) {
+        if (try r.takeByte() != @intFromBool(showdown)) {
             err.interface.print("Cannot process frame from -Dshowdown={}\n", .{!showdown}) catch {};
-            usageAndExit(args[0]);
+            usageAndExit(&err.interface, args[0]);
         }
 
-        gen = try r.readByte();
+        gen = try r.takeByte();
         if (gen < 1 or gen > 9) errorAndExit(&err.interface, "gen", gen, args[0]);
 
-        const size = try r.readInt(i16, endian);
+        const size = try r.takeInt(i16, endian);
         if (size != -1 and size != 0) errorAndExit(&err.interface, "log size", size, args[0]);
 
-        _ = try r.readInt(i32, endian);
+        _ = try r.takeInt(i32, endian);
         _ = try switch (gen) {
-            1 => r.readStruct(pkmn.gen1.Battle(pkmn.gen1.PRNG)),
+            1 => r.takeStruct(pkmn.gen1.Battle(pkmn.gen1.PRNG), endian),
             else => unreachable,
         };
-        if (size != 0) _ = try r.readByte();
+        if (size != 0) _ = try r.takeByte();
 
         const durations = try switch (gen) {
-            1 => r.readStruct(pkmn.gen1.chance.Durations),
+            1 => r.takeStruct(pkmn.gen1.chance.Durations, endian),
             else => unreachable,
         };
         var battle = try switch (gen) {
-            1 => r.readStruct(pkmn.gen1.Battle(pkmn.gen1.PRNG)),
+            1 => r.takeStruct(pkmn.gen1.Battle(pkmn.gen1.PRNG), endian),
             else => unreachable,
         };
-        _ = try r.readStruct(pkmn.Result);
-        const c1 = try r.readStruct(pkmn.Choice);
-        const c2 = try r.readStruct(pkmn.Choice);
+        _ = try r.takeStruct(pkmn.Result, endian);
+        const c1 = try r.takeStruct(pkmn.Choice, endian);
+        const c2 = try r.takeStruct(pkmn.Choice, endian);
 
         switch (gen) {
             1 => {
@@ -139,13 +139,13 @@ pub fn fuzz(allocator: std.mem.Allocator, seed: u64, duration: usize) !void {
             else => unreachable,
         };
 
-        var log: ?pkmn.protocol.Log(std.ArrayList(u8).Writer) = null;
+        var log: ?pkmn.protocol.Log(*std.Io.Writer) = null;
         if (save) {
             if (frames != null) deinit(allocator);
             initial = try allocator.dupe(u8, std.mem.toBytes(battle)[0..]);
-            frames = std.ArrayList(Frame).init(allocator);
-            buf = std.ArrayList(u8).init(allocator);
-            log = pkmn.protocol.Log(std.ArrayList(u8).Writer){ .writer = buf.?.writer() };
+            frames = std.array_list.Aligned(Frame, null).empty;
+            writer = std.Io.Writer.Allocating.init(allocator);
+            log = pkmn.protocol.Log(*std.Io.Writer){ .writer = &writer.?.writer };
         }
 
         std.debug.assert(!showdown or battle.side(.P1).get(1).hp > 0);
@@ -211,13 +211,13 @@ fn run(
         c2 = choices[p2.range(u8, 0, n)];
 
         if (save) {
-            std.debug.assert(buf.?.items.len <= max);
-            try frames.?.append(.{
+            std.debug.assert(writer.?.written().len <= max);
+            try frames.?.append(allocator, .{
                 .result = result,
                 .c1 = c1,
                 .c2 = c2,
                 .state = try allocator.dupe(u8, std.mem.toBytes(battle.*)[0..]),
-                .log = try buf.?.toOwnedSlice(),
+                .log = try writer.?.toOwnedSlice(),
                 .extra = if (chance)
                     try allocator.dupe(u8, std.mem.toBytes(options.chance.durations)[0..])
                 else
@@ -237,17 +237,20 @@ pub fn update(
     allocator: std.mem.Allocator,
 ) pkmn.Result {
     if (!chance) return battle.update(c1, c2, options) catch unreachable;
-    const writer = std.io.null_writer;
-    // const writer = std.io.getStdErr().writer();
+    var discarding: std.Io.Writer.Discarding = .init(&.{});
+    const drop = &discarding.writer;
+    // DEBUG
+    // const stderr = std.Io.File.stderr().writer(std.testing.io, &.{});
+    // const writer = &stderr.interface;
     return switch (gen) {
-        1 => pkmn.gen1.calc.update(battle, c1, c2, options, allocator, writer, transitions),
+        1 => pkmn.gen1.calc.update(battle, c1, c2, options, allocator, drop, drop, transitions),
         else => unreachable,
     } catch unreachable;
 }
 
 fn errorAndExit(err: *std.Io.Writer, msg: []const u8, arg: anytype, cmd: []const u8) noreturn {
     err.print("Invalid {s}: {any}\n", .{ msg, arg }) catch {};
-    usageAndExit(cmd);
+    usageAndExit(err, cmd);
 }
 
 fn usageAndExit(err: *std.Io.Writer, cmd: []const u8) noreturn {
@@ -263,22 +266,23 @@ fn deinit(allocator: std.mem.Allocator) void {
         allocator.free(frame.log);
         allocator.free(frame.extra);
     }
-    frames.?.deinit();
-    std.debug.assert(buf != null);
-    buf.?.deinit();
+    frames.?.deinit(allocator);
+    std.debug.assert(writer != null);
+    writer.?.deinit();
 }
 
 fn dump(seed: u64) !void {
-    const out = std.io.getStdOut();
-    var bw = std.io.bufferedWriter(out.writer());
-    var w = bw.writer();
-    if (out.isTty() or builtin.mode != .Debug) {
-        try w.print("0x{X}\n", .{seed});
+    const io = std.Options.debug_io;
+    var buf: [4096]u8 = undefined;
+    var stdout = std.Io.File.stdout().writer(io, &buf);
+
+    if (try std.Io.File.stdout().isTty(io) or builtin.mode != .Debug) {
+        try stdout.interface.print("0x{X}\n", .{seed});
     } else {
-        try w.writeInt(u64, seed, endian);
-        try display(&w, false);
+        try stdout.interface.writeInt(u64, seed, endian);
+        try display(&stdout.interface, false);
     }
-    try bw.flush();
+    try stdout.interface.flush();
 
     // Write the last state information to the logs/ directory if it
     // exists so that it can easily be turned into a regression testcase
@@ -286,18 +290,19 @@ fn dump(seed: u64) !void {
     const ext = if (showdown) "showdown" else "pkmn";
     const name = try std.fmt.bufPrint(&n, "logs/0x{X}.{s}.bin", .{ seed, ext });
 
-    const dir = std.fs.cwd();
-    const file = dir.createFile(name, .{}) catch return;
-    defer file.close();
-    try display(&file.writer(), true);
+    const dir = std.Io.Dir.cwd();
+    const file = dir.createFile(io, name, .{}) catch return;
+    defer file.close(io);
+    var w = file.writer(io, &buf);
+    try display(&w.interface, true);
 
     var p: [1024]u8 = undefined;
-    const path = try dir.realpath(name, &p);
-    dir.deleteFile("logs/dump.bin") catch {};
-    dir.symLink(path, "logs/dump.bin", .{}) catch return;
+    const size = try file.realPath(io, &p);
+    dir.deleteFile(io, "logs/dump.bin") catch {};
+    dir.symLink(io, p[0..size], "logs/dump.bin", .{}) catch return;
 }
 
-fn display(w: anytype, final: bool) !void {
+fn display(w: *std.Io.Writer, final: bool) !void {
     try w.writeByte(@intFromBool(showdown));
     try w.writeByte(gen);
     try w.writeInt(i16, -1, endian);
@@ -314,60 +319,26 @@ fn display(w: anytype, final: bool) !void {
             try w.writeByte(0);
             try w.writeAll(f.extra);
             try w.writeAll(f.state);
-            try w.writeStruct(f.result);
-            try w.writeStruct(f.c1);
-            try w.writeStruct(f.c2);
+            try w.writeStruct(f.result, endian);
+            try w.writeStruct(f.c1, endian);
+            try w.writeStruct(f.c2, endian);
         } else {
             for (fs.items) |f| {
                 try w.writeAll(f.log);
                 try w.writeAll(f.state);
-                try w.writeStruct(f.result);
-                try w.writeStruct(f.c1);
-                try w.writeStruct(f.c2);
+                try w.writeStruct(f.result, endian);
+                try w.writeStruct(f.c1, endian);
+                try w.writeStruct(f.c2, endian);
             }
         }
     }
-    if (buf) |b| try w.writeAll(b.items);
+    if (writer) |*b| try w.writeAll(b.written());
 }
 
-pub const panic =
-    if (@hasDecl(std.debug, "FullPanic")) std.debug.FullPanic(panicFn) else Panic.call;
+pub const panic = std.debug.FullPanic(panicFn);
+
 fn panicFn(msg: []const u8, ra: ?usize) noreturn {
+    @branchHint(.cold);
     if (last) |seed| dump(seed) catch unreachable;
     std.debug.defaultPanic(msg, ra);
 }
-
-pub const Panic = struct {
-    pub fn call(msg: []const u8, ert: ?*std.builtin.StackTrace, ra: ?usize) noreturn {
-        if (last) |seed| dump(seed) catch unreachable;
-        if (@hasDecl(std.builtin, "Panic")) {
-            std.debug.FormattedPanic.call(msg, ert, ra);
-        } else {
-            std.builtin.default_panic(msg, ert, ra);
-        }
-    }
-
-    pub fn sentinelMismatch(expected: anytype, _: @TypeOf(expected)) noreturn {
-        call("sentinel mismatch", null, null);
-    }
-
-    pub fn unwrapError(_: ?*std.builtin.StackTrace, _: anyerror) noreturn {
-        call("attempt to unwrap error", null, null);
-    }
-
-    pub fn outOfBounds(_: usize, _: usize) noreturn {
-        call("index out of bounds", null, null);
-    }
-
-    pub fn startGreaterThanEnd(_: usize, _: usize) noreturn {
-        call("start index is larger than end index", null, null);
-    }
-
-    pub fn inactiveUnionField(active: anytype, _: @TypeOf(active)) noreturn {
-        call("access of inactive union field", null, null);
-    }
-
-    pub const messages = if (@hasDecl(std.builtin, "Panic"))
-        std.debug.FormattedPanic.messages
-    else {};
-};

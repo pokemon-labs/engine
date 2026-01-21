@@ -10402,9 +10402,11 @@ test "transitions" {
     const allocator = std.testing.allocator;
 
     var discarding: std.Io.Writer.Discarding = .init(&.{});
-    const writer = &discarding.writer;
-    // const writer = std.io.getStdErr().writer();
-    _ = try calc.transitions(battle, move(1), move(1), allocator, writer, writer, .{
+    const drop = &discarding.writer;
+    // DEBUG
+    // var stderr = std.Io.File.stderr().writer(std.testing.io, &.{});
+    // const writer = &stderr.interface;
+    _ = try calc.transitions(battle, move(1), move(1), allocator, drop, drop, .{
         .durations = Durations{},
         .seed = seed,
         .cap = true,
@@ -10495,8 +10497,10 @@ fn Test(comptime rolls: anytype) type {
 
             const allocator = std.testing.allocator;
             var discarding: std.Io.Writer.Discarding = .init(&.{});
-            const writer = &discarding.writer;
-            // const writer = std.io.getStdErr().writer(); // DEBUG
+            const drop = &discarding.writer;
+            // DEBUG
+            // var stderr = std.Io.File.stderr().writer(std.testing.io, &.{});
+            // const writer = &stderr.interface;
             // TODO: pass true to compute transitions
             const result = calc.update(
                 &self.battle.actual,
@@ -10504,8 +10508,8 @@ fn Test(comptime rolls: anytype) type {
                 c2,
                 &self.options,
                 allocator,
-                writer,
-                writer,
+                drop,
+                drop,
                 false,
             );
 
