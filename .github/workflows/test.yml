@@ -16,8 +16,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         options: ['', '-Dlog -Dchance -Dcalc', '-Dshowdown', '-Dshowdown -Dlog -Dchance -Dcalc']
-        # zig: [local, patched] # local = 0.16.0
-        zig: [patched]
+        # zig: [local, master] # local = 0.16.0
+        zig: [local]
         exclude:
           - os: windows-latest
             zig: local
@@ -25,12 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # NOTE: we rely on npm postinstall-ed zig for local zig
-      - uses: scheibo/build-zig@main
-        if: ${{ matrix.zig == 'patched' }}
-        with:
-          patch-file: zig.patch
       - uses: goto-bus-stop/setup-zig@default
-        if: ${{ matrix.zig != 'local' && matrix.zig != 'patched'}}
+        if: ${{ matrix.zig != 'local' }}
         with:
           version: ${{matrix.zig}}
       - run: npm install
