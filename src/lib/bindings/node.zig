@@ -73,10 +73,10 @@ fn update(gen: anytype) c.napi_callback {
                     assert(len == gen.LOGS_SIZE);
 
                     const buf = @as([*]u8, @ptrCast(data.?))[0..gen.LOGS_SIZE];
-                    var stream: pkmn.protocol.ByteStream = .{ .buffer = buf };
+                    var writer: pkmn.protocol.Writer = .{ .buffer = buf };
                     // TODO: extract out
                     var opts = pkmn.battle.options(
-                        pkmn.protocol.FixedLog{ .writer = stream.writer() },
+                        pkmn.protocol.FixedLog{ .writer = &writer },
                         gen.chance.NULL,
                         gen.calc.NULL,
                     );

@@ -14,7 +14,6 @@ const util = @import("../common/util.zig");
 
 const assert = std.debug.assert;
 const Battle = helpers.Battle;
-const ByteStream = protocol.ByteStream;
 const Calc = calc.Calc;
 const Chance = chance.Chance;
 const Choice = common.Choice;
@@ -40,6 +39,7 @@ const Species = data.Species;
 const Status = data.Status;
 const swtch = helpers.swtch;
 const Types = data.Types;
+const Writer = protocol.Writer;
 
 const CHOICES_SIZE = data.CHOICES_SIZE;
 
@@ -154,11 +154,11 @@ test "switching (order)" {
     var expected_buf: [22]u8 = undefined;
     var actual_buf: [22]u8 = undefined;
 
-    var expected_stream: ByteStream = .{ .buffer = &expected_buf };
-    var actual_stream: ByteStream = .{ .buffer = &actual_buf };
+    var expected_writer: Writer = .{ .buffer = &expected_buf };
+    var actual_writer: Writer = .{ .buffer = &actual_buf };
 
-    const expected: FixedLog = .{ .writer = expected_stream.writer() };
-    const actual: FixedLog = .{ .writer = actual_stream.writer() };
+    const expected: FixedLog = .{ .writer = &expected_writer };
+    const actual: FixedLog = .{ .writer = &actual_writer };
 
     try expected.switched(.{ P1.ident(3), &p1.pokemon[2] });
     try expected.switched(.{ P2.ident(2), &p2.pokemon[1] });
@@ -983,11 +983,11 @@ test "end turn (turn limit)" {
     var expected_buf: [size]u8 = undefined;
     var actual_buf: [size]u8 = undefined;
 
-    var expected_stream: ByteStream = .{ .buffer = &expected_buf };
-    var actual_stream: ByteStream = .{ .buffer = &actual_buf };
+    var expected_writer: Writer = .{ .buffer = &expected_buf };
+    var actual_writer: Writer = .{ .buffer = &actual_buf };
 
-    const expected: FixedLog = .{ .writer = expected_stream.writer() };
-    const actual: FixedLog = .{ .writer = actual_stream.writer() };
+    const expected: FixedLog = .{ .writer = &expected_writer };
+    const actual: FixedLog = .{ .writer = &actual_writer };
 
     const slot = if (showdown) 2 else 1;
     try expected.switched(.{ P1.ident(slot), t.expected.p1.get(slot) });
@@ -10004,11 +10004,11 @@ test "MAX_LOGS" {
     var expected_buf: [data.MAX_LOGS]u8 = undefined;
     var actual_buf: [data.MAX_LOGS]u8 = undefined;
 
-    var expected_stream: ByteStream = .{ .buffer = &expected_buf };
-    var actual_stream: ByteStream = .{ .buffer = &actual_buf };
+    var expected_writer: Writer = .{ .buffer = &expected_buf };
+    var actual_writer: Writer = .{ .buffer = &actual_buf };
 
-    const expected: FixedLog = .{ .writer = expected_stream.writer() };
-    const actual: FixedLog = .{ .writer = actual_stream.writer() };
+    const expected: FixedLog = .{ .writer = &expected_writer };
+    const actual: FixedLog = .{ .writer = &actual_writer };
 
     try expected.activate(.{ P1.ident(1), .Confusion });
     try expected.move(.{ P1.ident(1), Move.Metronome, P1.ident(1) });
@@ -10120,11 +10120,11 @@ test "RNG overrides" {
     var expected_buf: [data.MAX_LOGS]u8 = undefined;
     var actual_buf: [data.MAX_LOGS]u8 = undefined;
 
-    var expected_stream: ByteStream = .{ .buffer = &expected_buf };
-    var actual_stream: ByteStream = .{ .buffer = &actual_buf };
+    var expected_writer: Writer = .{ .buffer = &expected_buf };
+    var actual_writer: Writer = .{ .buffer = &actual_buf };
 
-    const expected: FixedLog = .{ .writer = expected_stream.writer() };
-    const actual: FixedLog = .{ .writer = actual_stream.writer() };
+    const expected: FixedLog = .{ .writer = &expected_writer };
+    const actual: FixedLog = .{ .writer = &actual_writer };
 
     var options = pkmn.battle.options(actual, chance.NULL, calc.NULL);
 
@@ -10229,9 +10229,9 @@ test "RNG overrides" {
         p2.get(1).status = 0;
         try expected.turn(.{2});
 
-        try expectLog(expected_buf[0..expected_stream.pos], actual_buf[0..actual_stream.pos]);
-        expected_stream.reset();
-        actual_stream.reset();
+        try expectLog(expected_buf[0..expected_writer.pos], actual_buf[0..actual_writer.pos]);
+        expected_writer.reset();
+        actual_writer.reset();
 
         try expectEqual(Result.Default, try battle.update(move(2), move(1), &options));
 
@@ -10249,9 +10249,9 @@ test "RNG overrides" {
         try expected.status(.{ P1.ident(1), p1.get(1).status, .None });
         try expected.turn(.{3});
 
-        try expectLog(expected_buf[0..expected_stream.pos], actual_buf[0..actual_stream.pos]);
-        expected_stream.reset();
-        actual_stream.reset();
+        try expectLog(expected_buf[0..expected_writer.pos], actual_buf[0..actual_writer.pos]);
+        expected_writer.reset();
+        actual_writer.reset();
 
         battle.rng.state += 1;
         try expectEqual(Result.Default, try battle.update(move(3), move(2), &options));
@@ -10269,9 +10269,9 @@ test "RNG overrides" {
         try expected.damage(.{ P1.ident(1), p1.get(1), .None });
         try expected.turn(.{4});
 
-        try expectLog(expected_buf[0..expected_stream.pos], actual_buf[0..actual_stream.pos]);
-        expected_stream.reset();
-        actual_stream.reset();
+        try expectLog(expected_buf[0..expected_writer.pos], actual_buf[0..actual_writer.pos]);
+        expected_writer.reset();
+        actual_writer.reset();
 
         try expectEqual(Result.Default, try battle.update(move(4), move(3), &options));
 
@@ -10288,9 +10288,9 @@ test "RNG overrides" {
         try expected.hitcount(.{ P1.ident(1), 2 });
         try expected.turn(.{5});
 
-        try expectLog(expected_buf[0..expected_stream.pos], actual_buf[0..actual_stream.pos]);
-        expected_stream.reset();
-        actual_stream.reset();
+        try expectLog(expected_buf[0..expected_writer.pos], actual_buf[0..actual_writer.pos]);
+        expected_writer.reset();
+        actual_writer.reset();
 
         try expectEqual(Result.Default, try battle.update(move(2), move(1), &options));
 
@@ -10308,9 +10308,9 @@ test "RNG overrides" {
         try expected.damage(.{ P1.ident(1), p1.get(1), .None });
         try expected.turn(.{6});
 
-        try expectLog(expected_buf[0..expected_stream.pos], actual_buf[0..actual_stream.pos]);
-        expected_stream.reset();
-        actual_stream.reset();
+        try expectLog(expected_buf[0..expected_writer.pos], actual_buf[0..actual_writer.pos]);
+        expected_writer.reset();
+        actual_writer.reset();
 
         try expectEqual(p1.get(1).hp, battle.side(.P1).pokemon[0].hp);
         try expectEqual(p2.get(1).hp, battle.side(.P2).pokemon[0].hp);
@@ -10379,9 +10379,9 @@ test "RNG overrides" {
         try expected.damage(.{ P2.ident(1), p2.get(1), .None });
         try expected.turn(.{2});
 
-        try expectLog(expected_buf[0..expected_stream.pos], actual_buf[0..actual_stream.pos]);
-        expected_stream.reset();
-        actual_stream.reset();
+        try expectLog(expected_buf[0..expected_writer.pos], actual_buf[0..actual_writer.pos]);
+        expected_writer.reset();
+        actual_writer.reset();
 
         try expectEqual(p1.get(1).hp, battle.side(.P1).pokemon[0].hp);
         try expectEqual(p2.get(1).hp, battle.side(.P2).pokemon[0].hp);
@@ -10471,11 +10471,11 @@ fn Test(comptime rolls: anytype) type {
             var expected_buf: [22]u8 = undefined;
             var actual_buf: [22]u8 = undefined;
 
-            var expected_stream: ByteStream = .{ .buffer = &expected_buf };
-            var actual_stream: ByteStream = .{ .buffer = &actual_buf };
+            var expected_writer: Writer = .{ .buffer = &expected_buf };
+            var actual_writer: Writer = .{ .buffer = &actual_buf };
 
-            const expected: FixedLog = .{ .writer = expected_stream.writer() };
-            const actual: FixedLog = .{ .writer = actual_stream.writer() };
+            const expected: FixedLog = .{ .writer = &expected_writer };
+            const actual: FixedLog = .{ .writer = &actual_writer };
 
             try expected.switched(.{ P1.ident(1), self.actual.p1.get(1) });
             try expected.switched(.{ P2.ident(1), self.actual.p2.get(1) });

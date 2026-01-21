@@ -24,7 +24,7 @@ pub fn main() !void {
     if (args.len < 2 or args.len > 3) usageAndExit(args[0]);
 
     var buf: [pkmn.LOGS_SIZE]u8 = undefined;
-    var stream = pkmn.protocol.ByteStream{ .buffer = &buf };
+    var writer = pkmn.protocol.Writer{ .buffer = &buf };
 
     const gen = std.fmt.parseUnsigned(u8, args[1], 10) catch
         errorAndExit("gen", args[1], args[0]);
@@ -60,7 +60,7 @@ pub fn main() !void {
         1 => options: {
             var chance = pkmn.gen1.Chance(pkmn.Rational(u128)){ .probability = .{} };
             break :options pkmn.battle.options(
-                pkmn.protocol.FixedLog{ .writer = stream.writer() },
+                pkmn.protocol.FixedLog{ .writer = &writer },
                 &chance,
                 pkmn.gen1.calc.NULL,
             );
@@ -69,11 +69,11 @@ pub fn main() !void {
     };
 
     _ = try battle.update(.{}, .{}, &options);
-    format(gen, &stream);
+    format(gen, &writer);
     options.chance.reset();
 
     _ = try battle.update(move(1), move(1), &options);
-    format(gen, &stream);
+    format(gen, &writer);
     std.debug.print("\x1b[41m{} {}\x1b[K\x1b[0m\n", .{
         options.chance.actions,
         options.chance.durations,
@@ -81,7 +81,7 @@ pub fn main() !void {
     options.chance.reset();
 
     _ = try battle.update(move(1), move(0), &options);
-    format(gen, &stream);
+    format(gen, &writer);
     std.debug.print("\x1b[41m{} {}\x1b[K\x1b[0m\n", .{
         options.chance.actions,
         options.chance.durations,
@@ -89,7 +89,7 @@ pub fn main() !void {
     options.chance.reset();
 
     _ = try battle.update(move(1), move(0), &options);
-    format(gen, &stream);
+    format(gen, &writer);
     std.debug.print("\x1b[41m{} {}\x1b[K\x1b[0m\n", .{
         options.chance.actions,
         options.chance.durations,
@@ -106,13 +106,13 @@ pub fn main() !void {
     try out.print("{}\n", .{stats.?});
 }
 
-fn format(gen: u8, stream: *pkmn.protocol.ByteStream) void {
+fn format(gen: u8, writer: *pkmn.protocol.Writer) void {
     if (!pkmn.options.log or !debug) return;
     pkmn.protocol.format(switch (gen) {
         1 => pkmn.gen1,
         else => unreachable,
-    }, stream.buffer[0..stream.pos], null, false);
-    stream.reset();
+    }, writer.buffer[0..writer.pos], null, false);
+    writer.reset();
 }
 
 fn errorAndExit(msg: []const u8, arg: []const u8, cmd: []const u8) noreturn {

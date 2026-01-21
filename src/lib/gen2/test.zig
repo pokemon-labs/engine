@@ -14,7 +14,6 @@ const std = @import("std");
 const ArgType = protocol.ArgType;
 const assert = std.debug.assert;
 const Battle = helpers.Battle;
-const ByteStream = protocol.ByteStream;
 const Calc = calc.Calc;
 const Chance = chance.Chance;
 const Choice = common.Choice;
@@ -40,6 +39,7 @@ const Status = data.Status;
 const swtch = helpers.swtch;
 const Type = data.Type;
 const Types = data.Types;
+const Writer = protocol.Writer;
 
 const CHOICES_SIZE = data.CHOICES_SIZE;
 
@@ -154,11 +154,11 @@ test "switching (order)" {
     var expected_buf: [24]u8 = undefined;
     var actual_buf: [24]u8 = undefined;
 
-    var expected_stream: ByteStream = .{ .buffer = &expected_buf };
-    var actual_stream: ByteStream = .{ .buffer = &actual_buf };
+    var expected_writer: Writer = .{ .buffer = &expected_buf };
+    var actual_writer: Writer = .{ .buffer = &actual_buf };
 
-    const expected: FixedLog = .{ .writer = expected_stream.writer() };
-    const actual: FixedLog = .{ .writer = actual_stream.writer() };
+    const expected: FixedLog = .{ .writer = &expected_writer };
+    const actual: FixedLog = .{ .writer = &actual_writer };
 
     try expected.switched(.{ P1.ident(3), &p1.pokemon[2] });
     try expected.switched(.{ P2.ident(2), &p2.pokemon[1] });
@@ -1456,11 +1456,11 @@ fn Test(comptime rolls: anytype) type {
             var expected_buf: [24]u8 = undefined;
             var actual_buf: [24]u8 = undefined;
 
-            var expected_stream: ByteStream = .{ .buffer = &expected_buf };
-            var actual_stream: ByteStream = .{ .buffer = &actual_buf };
+            var expected_writer: Writer = .{ .buffer = &expected_buf };
+            var actual_writer: Writer = .{ .buffer = &actual_buf };
 
-            const expected: FixedLog = .{ .writer = expected_stream.writer() };
-            const actual: FixedLog = .{ .writer = actual_stream.writer() };
+            const expected: FixedLog = .{ .writer = &expected_writer };
+            const actual: FixedLog = .{ .writer = &actual_writer };
 
             try expected.switched(.{ P1.ident(1), self.actual.p1.get(1) });
             try expected.switched(.{ P2.ident(1), self.actual.p2.get(1) });

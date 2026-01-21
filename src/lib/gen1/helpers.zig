@@ -290,9 +290,9 @@ else
 pub fn diff(
     a: *const data.Battle(data.PRNG),
     b: *const data.Battle(data.PRNG),
-    w: protocol.ByteStream.Writer,
+    w: *protocol.Writer,
 ) !usize {
-    const pos = w.stream.pos;
+    const pos = w.pos;
     const size = @sizeOf(data.Battle(data.PRNG)) - @sizeOf(data.PRNG);
     assert(size % 2 == 0);
     assert(size / 2 < 255);
@@ -306,7 +306,7 @@ pub fn diff(
         }
     }
 
-    return w.stream.pos - pos;
+    return w.pos - pos;
 }
 
 /// TODO

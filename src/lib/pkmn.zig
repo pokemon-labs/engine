@@ -35,13 +35,13 @@ pub const protocol = if (options.internal) @import("common/protocol.zig") else s
     /// Logs protocol information to its `WriterT` during a battle update when
     /// `options.log` is enabled.
     pub const Log = @import("common/protocol.zig").Log;
-    /// Minimal logging helper optimized for efficiently writing the individual
-    /// protocol bytes into a fixed buffer. Note that the `ByteStream.Writer` is
-    /// **not** a `std.Io.Writer` and should not be used for general purpose writing.
-    pub const ByteStream = @import("common/protocol.zig").ByteStream;
-    /// `Log` type backed by the optimized `ByteStream.Writer`. Intended to be
-    /// intialized with a `LOGS_SIZE`-sized buffer.
+    /// `Log` type backed by the optimized `Writer`. Intended to be intialized with
+    /// a `LOGS_SIZE`-sized buffer.
     pub const FixedLog = @import("common/protocol.zig").FixedLog;
+    /// Minimal logging helper optimized for efficiently writing the individual
+    /// protocol bytes into a fixed buffer. Note that this is **not** a
+    /// `std.Io.Writer` and should not be used for general purpose writing.
+    pub const Writer = @import("common/protocol.zig").Writer;
     /// Null object pattern implementation of `Log` backed by a null writer.
     /// Ignores anything sent to it, though protocol logging should additionally
     /// be turned off entirely with `options.log`.

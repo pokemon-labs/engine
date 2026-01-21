@@ -309,10 +309,6 @@ pub const Weather = enum(u8) {
     Upkeep,
 };
 
-/// Null object pattern implementation of `Log` backed by a null writer. Ignores anything sent to
-/// it, though protocol logging should additionally be turned off entirely with `options.log`.
-pub const NULL = Log(NullWriter){ .writer = .{} };
-
 /// Logs protocol information to its `WriterT` during a battle update when `options.log` is enabled.
 pub fn Log(comptime WriterT: type) type {
     return struct {
@@ -826,52 +822,47 @@ pub fn Log(comptime WriterT: type) type {
     };
 }
 
-/// `Log` type backed by the optimized `ByteStream.Writer`.
-pub const FixedLog = Log(ByteStream.Writer);
+/// `Log` type backed by the optimized `Writer`.
+pub const FixedLog = Log(*Writer);
 
-// XXX: just pull out writer
 /// Minimal logging helper optimized for efficiently writing the individual protocol bytes into a
-/// fixed buffer. Note that the `ByteStream.Writer` is **not** a `std.Io.Writer` and should not be
-/// used for general purpose writing.
-pub const ByteStream = struct {
+/// fixed buffer. Note that this is **not** a `std.Io.Writer` and should not be used for general
+/// purpose writing.
+pub const Writer = struct {
     buffer: []u8,
     pos: usize = 0,
 
-    pub const Writer = struct {
-        stream: *ByteStream,
+    pub const Error = error{NoSpaceLeft};
 
-        pub const Error = error{NoSpaceLeft};
-
-        pub fn writeByte(self: Writer, byte: u8) Error!void {
-            if (self.stream.pos >= self.stream.buffer.len) return error.NoSpaceLeft;
-            self.stream.buffer[self.stream.pos] = byte;
-            self.stream.pos += 1;
-        }
-
-        pub fn writeAll(self: Writer, bytes: []const u8) Error!void {
-            const npos = self.stream.pos + bytes.len;
-            if (npos > self.stream.buffer.len) return error.NoSpaceLeft;
-            @memcpy(self.stream.buffer[self.stream.pos..npos], bytes);
-            self.stream.pos = npos;
-        }
-
-        pub fn writeInt(self: Writer, comptime T: type, v: T, end: std.builtin.Endian) Error!void {
-            const bytes = @divExact(@typeInfo(T).int.bits, 8);
-            const npos = self.stream.pos + bytes;
-            if (npos > self.stream.buffer.len) return error.NoSpaceLeft;
-            std.mem.writeInt(T, self.stream.buffer[self.stream.pos..][0..bytes], v, end);
-            self.stream.pos = npos;
-        }
-    };
-
-    pub fn writer(self: *ByteStream) Writer {
-        return .{ .stream = self };
+    pub fn writeByte(self: *Writer, byte: u8) Error!void {
+        if (self.pos >= self.buffer.len) return error.NoSpaceLeft;
+        self.buffer[self.pos] = byte;
+        self.pos += 1;
     }
 
-    pub fn reset(self: *ByteStream) void {
+    pub fn writeAll(self: *Writer, bytes: []const u8) Error!void {
+        const npos = self.pos + bytes.len;
+        if (npos > self.buffer.len) return error.NoSpaceLeft;
+        @memcpy(self.buffer[self.pos..npos], bytes);
+        self.pos = npos;
+    }
+
+    pub fn writeInt(self: *Writer, comptime T: type, v: T, end: std.builtin.Endian) Error!void {
+        const bytes = @divExact(@typeInfo(T).int.bits, 8);
+        const npos = self.pos + bytes;
+        if (npos > self.buffer.len) return error.NoSpaceLeft;
+        std.mem.writeInt(T, self.buffer[self.pos..][0..bytes], v, end);
+        self.pos = npos;
+    }
+
+    pub fn reset(self: *Writer) void {
         self.pos = 0;
     }
 };
+
+/// Null object pattern implementation of `Log` backed by a null writer. Ignores anything sent to
+/// it, though protocol logging should additionally be turned off entirely with `options.log`.
+pub const NULL = Log(NullWriter){ .writer = .{} };
 
 const NullWriter = struct {
     pub const Error = error{};
@@ -1280,8 +1271,8 @@ const p1 = Player.P1;
 const p2 = Player.P2;
 
 var buf: [pkmn.LOGS_SIZE]u8 = undefined;
-var stream: ByteStream = .{ .buffer = &buf };
-var log: FixedLog = .{ .writer = stream.writer() };
+var writer: Writer = .{ .buffer = &buf };
+var log: FixedLog = .{ .writer = &writer };
 
 const gen1 = pkmn.gen1;
 const gen2 = pkmn.gen2;
@@ -1325,14 +1316,14 @@ test "|move|" {
         &.{ N(ArgType.Move), 0b1100, N(M1.Thunderbolt), 0b0101, N(Move.None) },
         buf[0..5],
     );
-    stream.reset();
+    writer.reset();
 
     try log.move(.{ p2.ident(4), M1.Pound, p1.ident(5), M1.Metronome });
     try expectLog1(
         &.{ N(ArgType.Move), 0b1100, N(M1.Pound), 0b0101, N(Move.From), N(M1.Metronome) },
         buf[0..6],
     );
-    stream.reset();
+    writer.reset();
 
     try log.move(.{ p2.ident(4), M1.SkullBash, ID{} });
     try log.laststill(.{});
@@ -1347,7 +1338,7 @@ test "|move|" {
         },
         buf[0..6],
     );
-    stream.reset();
+    writer.reset();
 
     try log.move(.{ p2.ident(4), M1.Tackle, p1.ident(5) });
     try log.lastmiss(.{});
@@ -1362,7 +1353,7 @@ test "|move|" {
         },
         buf[0..6],
     );
-    stream.reset();
+    writer.reset();
 }
 
 test "|switch|" {
@@ -1378,7 +1369,7 @@ test "|switch|" {
         .little => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 91, 200, 0, 144, 1, par },
     };
     try expectLog1(expected, buf[0..9]);
-    stream.reset();
+    writer.reset();
 
     snorlax.level = 100;
     snorlax.hp = 0;
@@ -1389,7 +1380,7 @@ test "|switch|" {
         .little => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 100, 0, 0, 144, 1, 0 },
     };
     try expectLog1(expected, buf[0..9]);
-    stream.reset();
+    writer.reset();
 
     snorlax.hp = 400;
     try log.switched(.{ p2.ident(3), &snorlax });
@@ -1398,7 +1389,7 @@ test "|switch|" {
         .little => &.{ N(ArgType.Switch), 0b1011, N(S1.Snorlax), 100, 144, 1, 144, 1, 0 },
     };
     try expectLog1(expected, buf[0..9]);
-    stream.reset();
+    writer.reset();
 
     var blissey = gen2.helpers.Pokemon.init(.{ .species = .Blissey, .moves = &.{.Splash} });
     blissey.level = 91;
@@ -1417,27 +1408,27 @@ test "|switch|" {
         .little => .{ 200, 0, 144, 1, par },
     });
     try expectLog2(expected, buf[0..10]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|cant|" {
     try log.cant(.{ p2.ident(6), .Bound });
     try expectLog1(&.{ N(ArgType.Cant), 0b1110, N(Cant.Bound) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.cant(.{ p1.ident(2), .Disable, M1.Earthquake });
     try expectLog1(&.{ N(ArgType.Cant), 2, N(Cant.Disable), N(M1.Earthquake) }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|faint|" {
     try log.faint(.{ p2.ident(2), false });
     try expectLog1(&.{ N(ArgType.Faint), 0b1010 }, buf[0..2]);
-    stream.reset();
+    writer.reset();
 
     try log.faint(.{ p2.ident(2), true });
     try expectLog1(&.{ N(ArgType.Faint), 0b1010, N(ArgType.None) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|turn|" {
@@ -1447,19 +1438,19 @@ test "|turn|" {
         .little => &.{ N(ArgType.Turn), 42, 0, N(ArgType.None) },
     };
     try expectLog1(expected, buf[0..4]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|win|" {
     try log.win(.{.P2});
     try expectLog1(&.{ N(ArgType.Win), 1, N(ArgType.None) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|tie|" {
     try log.tie(.{});
     try expectLog1(&.{ N(ArgType.Tie), N(ArgType.None) }, buf[0..2]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-damage|" {
@@ -1472,7 +1463,7 @@ test "|-damage|" {
         .little => &.{ N(ArgType.Damage), 0b1010, 100, 2, 191, 2, 1, N(Damage.None) },
     };
     try expectLog1(expected, buf[0..8]);
-    stream.reset();
+    writer.reset();
 
     chansey.hp = 100;
     chansey.stats.hp = 256;
@@ -1483,7 +1474,7 @@ test "|-damage|" {
         .little => &.{ N(ArgType.Damage), 0b1010, 100, 0, 0, 1, 0, N(Damage.Confusion) },
     };
     try expectLog1(expected, buf[0..8]);
-    stream.reset();
+    writer.reset();
 
     chansey.status = gen1.Status.init(.PSN);
     try log.damage(.{ p2.ident(2), &chansey, .RecoilOf, p1.ident(1) });
@@ -1492,7 +1483,7 @@ test "|-damage|" {
         .little => &.{ N(ArgType.Damage), 0b1010, 100, 0, 0, 1, 0b1000, N(Damage.RecoilOf), 1 },
     };
     try expectLog1(expected, buf[0..9]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-heal|" {
@@ -1505,7 +1496,7 @@ test "|-heal|" {
         .little => &.{ N(ArgType.Heal), 0b1010, 100, 2, 191, 2, 1, N(Heal.None) },
     };
     try expectLog1(expected, buf[0..8]);
-    stream.reset();
+    writer.reset();
 
     chansey.hp = 100;
     chansey.stats.hp = 256;
@@ -1516,7 +1507,7 @@ test "|-heal|" {
         .little => &.{ N(ArgType.Heal), 0b1010, 100, 0, 0, 1, 0, N(Heal.Silent) },
     };
     try expectLog1(expected, buf[0..8]);
-    stream.reset();
+    writer.reset();
 
     try log.heal(.{ p2.ident(2), &chansey, .Drain, p1.ident(1) });
     expected = switch (endian) {
@@ -1524,30 +1515,30 @@ test "|-heal|" {
         .little => &.{ N(ArgType.Heal), 0b1010, 100, 0, 0, 1, 0, N(Heal.Drain), 1 },
     };
     try expectLog1(expected, buf[0..9]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-status|" {
     try log.status(.{ p2.ident(6), gen1.Status.init(.BRN), .None });
     try expectLog1(&.{ N(ArgType.Status), 0b1110, 0b10000, N(Status.None) }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 
     try log.status(.{ p2.ident(2), gen1.Status.init(.PSN), .Silent });
     try expectLog1(&.{ N(ArgType.Status), 0b1010, 0b1000, N(Status.Silent) }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 
     try log.status(.{ p1.ident(1), gen1.Status.init(.PAR), .From, M1.BodySlam });
     try expectLog1(
         &.{ N(ArgType.Status), 0b0001, 0b1000000, N(Status.From), N(M1.BodySlam) },
         buf[0..5],
     );
-    stream.reset();
+    writer.reset();
 }
 
 test "|-curestatus|" {
     try log.curestatus(.{ p2.ident(6), gen1.Status.slp(7), .Message });
     try expectLog1(&.{ N(ArgType.CureStatus), 0b1110, 0b111, N(CureStatus.Message) }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 
     try log.curestatus(.{ p1.ident(2), gen1.Status.TOX, .Silent });
     try expectLog1(&.{
@@ -1556,86 +1547,86 @@ test "|-curestatus|" {
         0b10001000,
         N(CureStatus.Silent),
     }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-boost|" {
     try log.boost(.{ p2.ident(6), .Speed, 2 });
     try expectLog1(&.{ N(ArgType.Boost), 0b1110, N(Boost.Speed), 8 }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 
     try log.boost(.{ p1.ident(2), .Rage, 1 });
     try expectLog1(&.{ N(ArgType.Boost), 0b0010, N(Boost.Rage), 7 }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 
     try log.boost(.{ p2.ident(3), .Defense, -2 });
     try expectLog1(&.{ N(ArgType.Boost), 0b1011, N(Boost.Defense), 4 }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-clearallboost|" {
     try log.clearallboost(.{});
     try expectLog1(&.{N(ArgType.ClearAllBoost)}, buf[0..1]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-fail|" {
     try log.fail(.{ p2.ident(6), .None });
     try expectLog1(&.{ N(ArgType.Fail), 0b1110, N(Fail.None) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.fail(.{ p2.ident(6), .Sleep });
     try expectLog1(&.{ N(ArgType.Fail), 0b1110, N(Fail.Sleep) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.fail(.{ p2.ident(6), .Substitute });
     try expectLog1(&.{ N(ArgType.Fail), 0b1110, N(Fail.Substitute) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.fail(.{ p2.ident(6), .Weak });
     try expectLog1(&.{ N(ArgType.Fail), 0b1110, N(Fail.Weak) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-miss|" {
     try log.miss(.{p2.ident(4)});
     try expectLog1(&.{ N(ArgType.Miss), 0b1100 }, buf[0..2]);
-    stream.reset();
+    writer.reset();
 }
 test "|-hitcount|" {
     try log.hitcount(.{ p2.ident(1), 5 });
     try expectLog1(&.{ N(ArgType.HitCount), 0b1001, 5 }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-prepare|" {
     try log.prepare(.{ p2.ident(2), M1.Dig });
     try expectLog1(&.{ N(ArgType.Prepare), 0b1010, N(M1.Dig) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-mustrecharge|" {
     try log.mustrecharge(.{p1.ident(6)});
     try expectLog1(&.{ N(ArgType.MustRecharge), 0b0110 }, buf[0..2]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-activate|" {
     try log.activate(.{ p1.ident(2), .Struggle });
     try expectLog1(&.{ N(ArgType.Activate), 0b0010, N(Activate.Struggle) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.activate(.{ p2.ident(4), .Mist });
     try expectLog1(&.{ N(ArgType.Activate), 0b1100, N(Activate.Mist) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.activate(.{ p2.ident(6), .Substitute });
     try expectLog1(&.{ N(ArgType.Activate), 0b1110, N(Activate.Substitute) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.activate(.{ p1.ident(2), .Splash });
     try expectLog1(&.{ N(ArgType.Activate), 0b0010, N(Activate.Splash) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.activate(.{ p1.ident(4), .SubstituteBlock, M2.Spite });
     try expectLog1(&.{
@@ -1644,27 +1635,27 @@ test "|-activate|" {
         N(Activate.SubstituteBlock),
         N(M2.Spite),
     }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 
     try log.activate(.{ p1.ident(3), .Magnitude, 5 });
     try expectLog1(&.{ N(ArgType.Activate), 0b0011, N(Activate.Magnitude), 5 }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-fieldactivate|" {
     try log.fieldactivate(.{});
     try expectLog1(&.{N(ArgType.FieldActivate)}, buf[0..1]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-start|" {
     try log.start(.{ p2.ident(6), .Bide });
     try expectLog1(&.{ N(ArgType.Start), 0b1110, N(Start.Bide) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.start(.{ p1.ident(2), .ConfusionSilent });
     try expectLog1(&.{ N(ArgType.Start), 0b0010, N(Start.ConfusionSilent) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.start(.{
         p2.ident(6),
@@ -1676,7 +1667,7 @@ test "|-start|" {
         &.{ N(ArgType.Start), 0b1110, N(Start.TypeChange), 0b1000_1000, 0b1101 },
         buf[0..5],
     );
-    stream.reset();
+    writer.reset();
 
     try log.start(.{
         p1.ident(2),
@@ -1688,65 +1679,65 @@ test "|-start|" {
         &.{ N(ArgType.Start), 0b0010, N(Start.TypeChange), 0b0011_0110, 0b1100 },
         buf[0..5],
     );
-    stream.reset();
+    writer.reset();
 
     try log.start(.{ p1.ident(2), .Disable, M1.Surf });
     try expectLog1(&.{ N(ArgType.Start), 0b0010, N(Start.Disable), N(M1.Surf) }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 
     try log.start(.{ p1.ident(2), .Mimic, M1.Surf });
     try expectLog1(&.{ N(ArgType.Start), 0b0010, N(Start.Mimic), N(M1.Surf) }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-end|" {
     try log.end(.{ p2.ident(6), .Bide });
     try expectLog1(&.{ N(ArgType.End), 0b1110, N(End.Bide) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.end(.{ p1.ident(2), .ConfusionSilent });
     try expectLog1(&.{ N(ArgType.End), 0b0010, N(End.ConfusionSilent) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-ohko|" {
     try log.ohko(.{});
     try expectLog1(&.{N(ArgType.OHKO)}, buf[0..1]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-crit|" {
     try log.crit(.{p2.ident(5)});
     try expectLog1(&.{ N(ArgType.Crit), 0b1101 }, buf[0..2]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-supereffective|" {
     try log.supereffective(.{p1.ident(1)});
     try expectLog1(&.{ N(ArgType.SuperEffective), 0b0001 }, buf[0..2]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-resisted|" {
     try log.resisted(.{p2.ident(2)});
     try expectLog1(&.{ N(ArgType.Resisted), 0b1010 }, buf[0..2]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-immune|" {
     try log.immune(.{ p1.ident(3), .None });
     try expectLog1(&.{ N(ArgType.Immune), 0b0011, N(Immune.None) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.immune(.{ p2.ident(2), .OHKO });
     try expectLog1(&.{ N(ArgType.Immune), 0b1010, N(Immune.OHKO) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-transform|" {
     try log.transform(.{ p2.ident(4), p1.ident(5) });
     try expectLog1(&.{ N(ArgType.Transform), 0b1100, 0b0101 }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|drag|" {
@@ -1768,29 +1759,29 @@ test "|drag|" {
         .little => .{ 200, 0, 144, 1, par },
     });
     try expectLog2(expected, buf[0..10]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-item|" {
     try log.item(.{ p2.ident(2), I2.GoldBerry, p1.ident(4) });
     try expectLog2(&.{ N(ArgType.Item), 0b1010, N(I2.GoldBerry), 0b0100 }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-enditem|" {
     try log.enditem(.{ p1.ident(1), I2.BerserkGene, .None });
     try expectLog2(&.{ N(ArgType.EndItem), 0b0001, N(I2.BerserkGene), N(EndItem.None) }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 
     try log.enditem(.{ p2.ident(4), I2.PRZCureBerry, .Eat });
     try expectLog2(&.{ N(ArgType.EndItem), 0b1100, N(I2.PRZCureBerry), N(EndItem.Eat) }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-cureteam|" {
     try log.cureteam(.{p2.ident(5)});
     try expectLog2(&.{ N(ArgType.CureTeam), 0b1101 }, buf[0..2]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-sethp|" {
@@ -1802,35 +1793,35 @@ test "|-sethp|" {
         .little => &.{ N(ArgType.SetHP), 0b1010, 100, 2, 201, 2, 0, N(SetHP.Silent) },
     };
     try expectLog2(expected, buf[0..8]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-setboost|" {
     try log.setboost(.{ p2.ident(6), 6 });
     try expectLog2(&.{ N(ArgType.SetBoost), 0b1110, 12 }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.setboost(.{ p2.ident(3), 2 });
     try expectLog2(&.{ N(ArgType.SetBoost), 0b1011, 8 }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-copyboost|" {
     try log.copyboost(.{ p2.ident(3), p1.ident(6) });
     try expectLog2(&.{ N(ArgType.CopyBoost), 0b1011, 0b0110 }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-sidestart|" {
     try log.sidestart(.{ .P2, .Reflect });
     try expectLog2(&.{ N(ArgType.SideStart), 1, N(Side.Reflect) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-sideend|" {
     try log.sideend(.{ .P2, .LightScreen });
     try expectLog2(&.{ N(ArgType.SideEnd), 1, N(Side.LightScreen) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.sideend(.{ .P1, .Spikes, p1.ident(3) });
     try expectLog2(&.{
@@ -1839,27 +1830,27 @@ test "|-sideend|" {
         N(Side.Spikes),
         0b0011,
     }, buf[0..4]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-singlemove|" {
     try log.singlemove(.{ p2.ident(2), M2.DestinyBond });
     try expectLog2(&.{ N(ArgType.SingleMove), 0b1010, N(M2.DestinyBond) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-singleturn|" {
     try log.singleturn(.{ p1.ident(3), M2.Protect });
     try expectLog2(&.{ N(ArgType.SingleTurn), 0b0011, N(M2.Protect) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }
 
 test "|-weather|" {
     try log.weather(.{ W2.Rain, .Upkeep });
     try expectLog2(&.{ N(ArgType.Weather), N(W2.Rain), N(Weather.Upkeep) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 
     try log.weather(.{ W2.None, .None });
     try expectLog2(&.{ N(ArgType.Weather), N(W2.None), N(Weather.None) }, buf[0..3]);
-    stream.reset();
+    writer.reset();
 }

@@ -103,7 +103,7 @@ pub fn gen(comptime num: comptime_int) type {
         };
 
         const battle_options = struct {
-            stream: pkmn.protocol.ByteStream,
+            stream: pkmn.protocol.Writer,
             log: pkmn.protocol.FixedLog,
             chance: g.Chance(pkmn.Rational(f64)),
             calc: g.Calc,
@@ -121,10 +121,10 @@ pub fn gen(comptime num: comptime_int) type {
         ) callconv(.c) void {
             if (pkmn.options.log) {
                 if (log) |l| {
-                    options.stream = .{ .buffer = l.buf[0..l.len] };
-                    options.log = .{ .writer = options.stream.writer() };
+                    options.writer = .{ .buffer = l.buf[0..l.len] };
+                    options.log = .{ .writer = &options.writer };
                 } else {
-                    options.stream.reset();
+                    options.writer.reset();
                 }
             }
             if (pkmn.options.chance) {

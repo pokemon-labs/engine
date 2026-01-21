@@ -439,8 +439,8 @@ pub fn update(
     if (@TypeOf(battle.rng) == data.PRNG) {
         // Ensure we can encode the diffs in less than MAX_DIFFS bytes.
         var buf: [helpers.MAX_DIFFS]u8 = undefined;
-        var stream: protocol.ByteStream = .{ .buffer = &buf };
-        const n = try helpers.diff(&original, battle, stream.writer());
+        var pw: protocol.Writer = .{ .buffer = &buf };
+        const n = try helpers.diff(&original, battle, &pw);
 
         // Applying the diff to the battle should take us back to the original copy
         // of the battle (ignoring the RNG).

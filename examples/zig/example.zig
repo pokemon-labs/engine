@@ -50,14 +50,14 @@ pub fn main(init: std.process.Init) !void {
     // Preallocate a buffer for the log and create a `Log` handler which will write to it.
     // `pkmn.LOGS_SIZE` is guaranteed to be large enough for a single update. This will only be
     // written to if `-Dlog` is enabled - `pkmn.protocol.NULL` can be used to turn all of the
-    // logging into no-ops. Here we are using the optimized `pkmn.protocol.ByteStream` which should
+    // logging into no-ops. Here we are using the optimized `pkmn.protocol.FixedLog` which should
     // be more efficient than `pkmn.protocol.Log(std.Io.Writer.fixed([]u8))`, though that or a `Log`
     // backed by some other `std.Io.Writer` would also work. This example doesn't demonstrate how to
     // use `-Dchance` or `-Dcalc` so we just pass the no-op implementations here
     var buf: [pkmn.LOGS_SIZE]u8 = undefined;
-    var stream = pkmn.protocol.ByteStream{ .buffer = &buf };
+    var writer = pkmn.protocol.Writer{ .buffer = &buf };
     var options = pkmn.battle.options(
-        pkmn.protocol.FixedLog{ .writer = stream.writer() },
+        pkmn.protocol.FixedLog{ .writer = &writer },
         pkmn.gen1.chance.NULL,
         pkmn.gen1.calc.NULL,
     );
@@ -84,7 +84,7 @@ pub fn main(init: std.process.Init) !void {
         c2 = choices[n2];
 
         // Reset the stream to cause the buffer to get reused
-        stream.reset();
+        writer.reset();
     }
 
     // The result is from the perspective of P1

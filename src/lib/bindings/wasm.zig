@@ -19,10 +19,10 @@ pub fn gen(comptime num: comptime_int) type {
         ) callconv(.C) pkmn.Result {
             return (if (options_) |o| result: {
                 const buf = @as([*]u8, @ptrCast(o))[0..g.LOGS_SIZE];
-                var stream: pkmn.protocol.ByteStream = .{ .buffer = buf };
+                var writer: pkmn.protocol.Writer = .{ .buffer = buf };
                 // TODO: extract out
                 var opts = pkmn.battle.options(
-                    pkmn.protocol.FixedLog{ .writer = stream.writer() },
+                    pkmn.protocol.FixedLog{ .writer = &writer },
                     g.chance.NULL,
                     g.calc.NULL,
                 );
