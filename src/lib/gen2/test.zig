@@ -1491,7 +1491,7 @@ fn Test(comptime rolls: anytype) type {
             self.options.chance.probability.reduce();
             const r = self.options.chance.probability;
             if (r.p != p or r.q != q) {
-                print("expected {d}/{d}, found {}\n", .{ p, q, r });
+                print("expected {d}/{d}, found {f}\n", .{ p, q, r });
                 return error.TestExpectedEqual;
             }
         }

@@ -72,7 +72,7 @@ pub fn main(init: std.process.Init) !void {
 
     _ = try battle.update(move(1), move(1), &options);
     format(gen, &writer);
-    std.debug.print("\x1b[41m{} {}\x1b[K\x1b[0m\n", .{
+    std.debug.print("\x1b[41m{f} {f}\x1b[K\x1b[0m\n", .{
         options.chance.actions,
         options.chance.durations,
     });
@@ -80,7 +80,7 @@ pub fn main(init: std.process.Init) !void {
 
     _ = try battle.update(move(1), move(0), &options);
     format(gen, &writer);
-    std.debug.print("\x1b[41m{} {}\x1b[K\x1b[0m\n", .{
+    std.debug.print("\x1b[41m{f} {f}\x1b[K\x1b[0m\n", .{
         options.chance.actions,
         options.chance.durations,
     });
@@ -88,7 +88,7 @@ pub fn main(init: std.process.Init) !void {
 
     // _ = try battle.update(move(1), move(0), &options);
     // format(gen, &writer);
-    // std.debug.print("\x1b[41m{} {}\x1b[K\x1b[0m\n", .{
+    // std.debug.print("\x1b[41m{f} {f}\x1b[K\x1b[0m\n", .{
     //     options.chance.actions,
     //     options.chance.durations,
     // });

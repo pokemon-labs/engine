@@ -69,7 +69,7 @@ pub const Actions = extern struct {
         return true;
     }
 
-    pub fn fmt(self: Actions, writer: anytype, shape: bool) !void {
+    pub fn fmt(self: Actions, writer: *std.Io.Writer, shape: bool) !void {
         try writer.writeAll("<P1 = ");
         try self.p1.fmt(writer, shape);
         try writer.writeAll(", P2 = ");
@@ -77,8 +77,7 @@ pub const Actions = extern struct {
         try writer.writeAll(">");
     }
 
-    pub fn format(a: Actions, comptime f: []const u8, o: std.fmt.FormatOptions, w: anytype) !void {
-        _ = .{ f, o };
+    pub fn format(a: Actions, w: *std.Io.Writer) !void {
         try fmt(a, w, false);
     }
 };
@@ -182,12 +181,11 @@ pub const Action = packed struct(u128) {
 
     pub const Field = std.meta.FieldEnum(Action);
 
-    pub fn format(a: Action, comptime f: []const u8, o: std.fmt.FormatOptions, w: anytype) !void {
-        _ = .{ f, o };
+    pub fn format(a: Action, w: *std.Io.Writer) !void {
         try fmt(a, w, false);
     }
 
-    pub fn fmt(self: Action, writer: anytype, shape: bool) !void {
+    pub fn fmt(self: Action, writer: *std.Io.Writer, shape: bool) !void {
         try writer.writeByte('(');
         var printed = false;
         inline for (@typeInfo(Action).@"struct".fields) |field| {
@@ -782,7 +780,7 @@ pub fn expectProbability(r: anytype, p: u64, q: u64) !void {
 
     r.reduce();
     if (r.p != p or r.q != q) {
-        print("expected {d}/{d}, found {}\n", .{ p, q, r });
+        print("expected {d}/{d}, found {f}\n", .{ p, q, r });
         return error.TestExpectedEqual;
     }
 }

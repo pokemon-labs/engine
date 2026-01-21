@@ -1242,7 +1242,7 @@ fn expectEqualBytes(expected: []const u8, actual: []const u8, offset: usize) !vo
     for (offset..@min(expected.len, actual.len)) |i| {
         if (expected[i] != actual[i]) {
             print(
-                "index {} incorrect. expected 0x{X:0>2}, found 0x{X:0>2}\n",
+                "index {d} incorrect. expected 0x{X:0>2}, found 0x{X:0>2}\n",
                 .{ i, expected[i], actual[i] },
             );
             return error.TestExpectedEqual;

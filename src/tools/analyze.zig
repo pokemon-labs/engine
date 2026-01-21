@@ -54,7 +54,7 @@ pub fn main(init: std.process.Init) !void {
         if (current_function) |function| {
             if (std.mem.eql(u8, line, "}")) {
                 if (tool == .sizes) {
-                    try out.print("{s} {}\n", .{ function, current_function_size });
+                    try out.print("{s} {d}\n", .{ function, current_function_size });
                 }
                 current_function = null;
                 current_function_size = 0;
@@ -66,7 +66,7 @@ pub fn main(init: std.process.Init) !void {
                     const size = extractMemcpySize(c[1]) orelse
                         errorAndExit(&err.interface, "can't memcpy parse line=", line, args[0]);
                     if (size > tool.copies) {
-                        try out.print("{s}: {} bytes memcpy\n", .{ function, size });
+                        try out.print("{s}: {d} bytes memcpy\n", .{ function, size });
                     }
                 }
             }

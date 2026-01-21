@@ -332,7 +332,7 @@ pub fn transitions(
                             acts.p1.damage = @intCast(p1d);
                             acts.p2.damage = @intCast(p2d);
                             if ((try seen.getOrPut(acts)).found_existing) {
-                                die(err, "already seen {}", .{acts}, options.seed);
+                                die(err, "already seen {f}", .{acts}, options.seed);
                                 return error.TestUnexpectedResult;
                             }
                         }
@@ -349,7 +349,7 @@ pub fn transitions(
                     stats.saved += 1;
 
                     if (p.q < p.p) {
-                        die(err, "improper fraction {}", .{p}, options.seed);
+                        die(err, "improper fraction {f}", .{p}, options.seed);
                         return error.TestUnexpectedResult;
                     }
                 } else {
@@ -388,7 +388,7 @@ pub fn transitions(
         assert(stats.saved > saved);
         // TODO: LLVM - float_from_int from 'u256' without intrinsics
         // try out.print(
-        //     "    {} ({d:.2}%)\n  = ──────────\n    {} ({d:.2}%)\n\n",
+        //     "    {f} ({d:.2}%)\n  = ──────────\n    {f} ({d:.2}%)\n\n",
         //     .{r, 100 * @as(f128, @floatFromInt(r.p)) / @as(f128, @floatFromInt(r.q)),
         //         p, 100 * @as(f128, @floatFromInt(p.p)) / @as(f128, @floatFromInt(p.q))},
         // );
@@ -406,7 +406,7 @@ pub fn transitions(
 
     p.reduce();
     if (p.p != 1 or p.q != 1) {
-        die(err, "expected 1, found {}", .{p}, options.seed);
+        die(err, "expected 1, found {f}", .{p}, options.seed);
         return error.TestExpectedEqual;
     }
 
@@ -500,7 +500,7 @@ pub fn update(
 fn expectEqualActions(expected: Actions, actual: Actions) !void {
     return expectEqual(expected, actual) catch |e| switch (e) {
         error.TestExpectedEqual => {
-            std.debug.print("expected {}, found {}\n", .{ expected, actual });
+            std.debug.print("expected {f}, found {f}\n", .{ expected, actual });
             return e;
         },
     };
@@ -523,7 +523,7 @@ fn unfix(actual: anytype) data.Battle(data.PRNG) {
 
 fn die(w: *std.Io.Writer, comptime fmt: []const u8, v: anytype, seed: ?u64) void {
     w.print(fmt, v) catch return;
-    if (seed) |s| return w.print("{}\n", .{s}) catch return;
+    if (seed) |s| return w.print("{d}\n", .{s}) catch return;
     return w.writeByte('\n') catch return;
 }
 
@@ -539,7 +539,7 @@ const Style = struct {
     indent: bool = true,
 };
 
-fn debug(writer: anytype, actions: Actions, style: Style) !void {
+fn debug(writer: *std.Io.Writer, actions: Actions, style: Style) !void {
     if (style.indent) try writer.writeAll("  ");
     if (tty) {
         const mod: usize = if (style.dim) 2 else 1;
@@ -564,7 +564,7 @@ fn debug(writer: anytype, actions: Actions, style: Style) !void {
     if (style.newline) try writer.writeByte('\n');
 }
 
-fn format(writer: anytype, actions: Actions, p1: u9, p2: u9) !void {
+fn format(writer: *std.Io.Writer, actions: Actions, p1: u9, p2: u9) !void {
     var input: [1024]u8 = undefined;
     var output: [1024]u8 = undefined;
 

@@ -71,13 +71,7 @@ pub fn Rational(comptime T: type) type {
             reduce_(r);
         }
 
-        pub fn format(
-            self: Self,
-            comptime fmt: []const u8,
-            opts: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
-            _ = .{ fmt, opts };
+        pub fn format(self: Self, writer: *std.Io.Writer) !void {
             try writer.print("{d}/{d}", .{ self.p, self.q });
         }
     } else struct {
@@ -123,13 +117,7 @@ pub fn Rational(comptime T: type) type {
             reduce_(r);
         }
 
-        pub fn format(
-            self: Self,
-            comptime fmt: []const u8,
-            opts: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
-            _ = .{ fmt, opts };
+        pub fn format(self: Self, writer: *std.Io.Writer) !void {
             try writer.print("{d}/{d}", .{ self.p, self.q });
         }
     };
