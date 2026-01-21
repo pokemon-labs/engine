@@ -6,40 +6,43 @@ const showdown = pkmn.options.showdown;
 pub fn main(init: std.process.Init) !void {
     const allocator = init.arena.allocator();
     const args = try init.minimal.args.toSlice(allocator);
+    var err = std.Io.File.stderr().writer(init.io, &.{});
 
-    if (args.len < 3 or args.len > 5) usageAndExit(args[0]);
+    if (args.len < 3 or args.len > 5) usageAndExit(&err.interface, args[0]);
 
     const gen = std.fmt.parseUnsigned(u8, args[1], 10) catch
-        errorAndExit("gen", args[1], args[0]);
-    if (gen < 1 or gen > 9) errorAndExit("gen", args[1], args[0]);
+        errorAndExit(&err.interface, "gen", args[1], args[0]);
+    if (gen < 1 or gen > 9) errorAndExit(&err.interface, "gen", args[1], args[0]);
 
-    var arg: []u8 = args[2];
+    var arg: []u8 = @constCast(args[2]);
     var warmup: ?usize = null;
     const index = std.mem.indexOfScalar(u8, arg, '/');
     if (index) |i| {
         warmup = std.fmt.parseUnsigned(usize, arg[0..i], 10) catch
-            errorAndExit("warmup", args[2], args[0]);
-        if (warmup.? == 0) errorAndExit("warmup", args[2], args[0]);
+            errorAndExit(&err.interface,"warmup", args[2], args[0]);
+        if (warmup.? == 0) errorAndExit(&err.interface,"warmup", args[2], args[0]);
         arg = arg[(i + 1)..arg.len];
     }
     const battles = std.fmt.parseUnsigned(usize, arg, 10) catch
-        errorAndExit("battles", args[2], args[0]);
-    if (battles == 0) errorAndExit("battles", args[2], args[0]);
+        errorAndExit(&err.interface,"battles", args[2], args[0]);
+    if (battles == 0) errorAndExit(&err.interface,"battles", args[2], args[0]);
 
     const seed = if (args.len > 3) std.fmt.parseUnsigned(u64, args[3], 0) catch
-        errorAndExit("seed", args[3], args[0]) else seed: {
-        const Random = if (@hasDecl(std, "Random")) std.Random else std.rand;
-        var secret: [Random.DefaultCsprng.secret_seed_length]u8 = undefined;
-        std.crypto.random.bytes(&secret);
-        var csprng = Random.DefaultCsprng.init(secret);
-        const random = csprng.random();
-        break :seed random.int(usize);
+        errorAndExit(&err.interface,"seed", args[3], args[0]) else seed: {
+        // XXX
+        // const Random = if (@hasDecl(std, "Random")) std.Random else std.rand;
+        // var secret: [Random.DefaultCsprng.secret_seed_length]u8 = undefined;
+        // std.crypto.random.bytes(&secret);
+        // var csprng = Random.DefaultCsprng.init(secret);
+        // const random = csprng.random();
+        // break :seed random.int(usize);
+        break :seed 1234;
     };
 
-    try benchmark(gen, seed, battles, warmup);
+    try benchmark(init.io, gen, seed, battles, warmup);
 }
 
-pub fn benchmark(gen: u8, seed: u64, battles: usize, warmup: ?usize) !void {
+pub fn benchmark(io: std.Io, gen: u8, seed: u64, battles: usize, warmup: ?usize) !void {
     std.debug.assert(gen >= 1 and gen <= 9);
 
     var choices: [pkmn.CHOICES_SIZE]pkmn.Choice = undefined;
@@ -96,18 +99,16 @@ pub fn benchmark(gen: u8, seed: u64, battles: usize, warmup: ?usize) !void {
         }
     }
 
-    var out = std.io.getStdOut().writer();
-    try out.print("{d},{d},{d}\n", .{ time, turns, random.src.seed });
+    var out = std.Io.File.stdout().writer(io, &.{});
+    try out.interface.print("{d},{d},{d}\n", .{ time, turns, random.src.seed });
 }
 
-fn errorAndExit(msg: []const u8, arg: []const u8, cmd: []const u8) noreturn {
-    const err = std.io.getStdErr().writer();
+fn errorAndExit(err: *std.Io.Writer, msg: []const u8, arg: []const u8, cmd: []const u8) noreturn {
     err.print("Invalid {s}: {s}\n", .{ msg, arg }) catch {};
-    usageAndExit(cmd);
+    usageAndExit(err, cmd);
 }
 
-fn usageAndExit(cmd: []const u8) noreturn {
-    const err = std.io.getStdErr().writer();
+fn usageAndExit(err: *std.Io.Writer, cmd: []const u8) noreturn {
     err.print("Usage: {s} <GEN> <(WARMUP/)BATTLES> <SEED?>\n", .{cmd}) catch {};
     std.process.exit(1);
 }

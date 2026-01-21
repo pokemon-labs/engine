@@ -28,15 +28,16 @@ const endian = builtin.cpu.arch.endian();
 
 pub fn main(init: std.process.Init) !void {
     const arena = init.arena.allocator();
-    const allocator = init.gpa.allocator();
+    const allocator = init.gpa;
     const args = try init.minimal.args.toSlice(arena);
+    var err = std.Io.File.stderr().writer(init.io, &.{});
 
-    if (args.len != 1 and (args.len < 3 or args.len > 5)) usageAndExit(args[0]);
+    if (args.len != 1 and (args.len < 3 or args.len > 5)) usageAndExit(&err.interface, args[0]);
 
     if (args.len > 1) {
         gen = std.fmt.parseUnsigned(u8, args[1], 10) catch
-            errorAndExit("gen", args[1], args[0]);
-        if (gen < 1 or gen > 9) errorAndExit("gen", args[1], args[0]);
+            errorAndExit(&err.interface, "gen", args[1], args[0]);
+        if (gen < 1 or gen > 9) errorAndExit(&err.interface, "gen", args[1], args[0]);
 
         const end = args[2].len - 1;
         const mod: usize = switch (args[2][end]) {
@@ -44,19 +45,20 @@ pub fn main(init: std.process.Init) !void {
             'm' => std.time.s_per_min,
             'h' => std.time.s_per_hour,
             'd' => std.time.s_per_day,
-            else => errorAndExit("duration", args[2], args[0]),
+            else => errorAndExit(&err.interface, "duration", args[2], args[0]),
         };
         const duration = mod * (std.fmt.parseUnsigned(usize, args[2][0..end], 10) catch
-            errorAndExit("duration", args[2], args[0])) * std.time.ns_per_s;
+            errorAndExit(&err.interface, "duration", args[2], args[0])) * std.time.ns_per_s;
 
         const seed = if (args.len > 3) std.fmt.parseUnsigned(u64, args[3], 0) catch
-            errorAndExit("seed", args[3], args[0]) else seed: {
-            const Random = if (@hasDecl(std, "Random")) std.Random else std.rand;
-            var secret: [Random.DefaultCsprng.secret_seed_length]u8 = undefined;
-            std.crypto.random.bytes(&secret);
-            var csprng = Random.DefaultCsprng.init(secret);
-            const random = csprng.random();
-            break :seed random.int(usize);
+            errorAndExit(&err.interface, "seed", args[3], args[0]) else seed: {
+            // XXX
+            // var secret: [std.Random.DefaultCsprng.secret_seed_length]u8 = undefined;
+            // std.crypto.random.bytes(&secret);
+            // var csprng = std.Random.DefaultCsprng.init(secret);
+            // const random = csprng.random();
+            // break :seed random.int(usize);
+            break :seed 12345;
         };
 
         try fuzz(allocator, seed, duration);
@@ -66,16 +68,15 @@ pub fn main(init: std.process.Init) !void {
         var r = reader.reader();
 
         if (try r.readByte() != @intFromBool(showdown)) {
-            const err = std.io.getStdErr().writer();
-            err.print("Cannot process frame from -Dshowdown={}\n", .{!showdown}) catch {};
+            err.interface.print("Cannot process frame from -Dshowdown={}\n", .{!showdown}) catch {};
             usageAndExit(args[0]);
         }
 
         gen = try r.readByte();
-        if (gen < 1 or gen > 9) errorAndExit("gen", gen, args[0]);
+        if (gen < 1 or gen > 9) errorAndExit(&err.interface, "gen", gen, args[0]);
 
         const size = try r.readInt(i16, endian);
-        if (size != -1 and size != 0) errorAndExit("log size", size, args[0]);
+        if (size != -1 and size != 0) errorAndExit(&err.interface, "log size", size, args[0]);
 
         _ = try r.readInt(i32, endian);
         _ = try switch (gen) {
@@ -246,14 +247,12 @@ pub fn update(
     } catch unreachable;
 }
 
-fn errorAndExit(msg: []const u8, arg: anytype, cmd: []const u8) noreturn {
-    const err = std.io.getStdErr().writer();
+fn errorAndExit(err: *std.Io.Writer, msg: []const u8, arg: anytype, cmd: []const u8) noreturn {
     err.print("Invalid {s}: {any}\n", .{ msg, arg }) catch {};
     usageAndExit(cmd);
 }
 
-fn usageAndExit(cmd: []const u8) noreturn {
-    const err = std.io.getStdErr().writer();
+fn usageAndExit(err: *std.Io.Writer, cmd: []const u8) noreturn {
     err.print("Usage: {s} <GEN> <DURATION> <SEED?>\n", .{cmd}) catch {};
     std.process.exit(1);
 }
