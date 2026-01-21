@@ -11,14 +11,11 @@ const Tool = enum {
     layout,
 };
 
-pub fn main() !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(allocator);
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
-    if (args.len != 2) usageAndExit(args[0]);
+    if (args.len != 2) usageAndExit(init.io, args[0]);
 
     var tool: Tool = undefined;
     if (std.mem.eql(u8, args[1], "markdown")) {
@@ -28,12 +25,11 @@ pub fn main() !void {
     } else if (std.mem.eql(u8, args[1], "layout")) {
         tool = .layout;
     } else {
-        usageAndExit(args[0]);
+        usageAndExit(init.io, args[0]);
     }
 
-    const out = std.io.getStdOut();
-    var buf = std.io.bufferedWriter(out.writer());
-    var w = buf.writer();
+    var stdout = std.Io.File.stdout().writer(init.io, try allocator.alloc(u8, 4096));
+    var w = &stdout.interface;
 
     switch (tool) {
         .markdown => {
@@ -147,7 +143,7 @@ pub fn main() !void {
         },
     }
 
-    try buf.flush();
+    try w.flush();
 }
 
 fn print(w: anytype, name: []const u8, comptime T: type, comptime bits: bool) !void {
@@ -164,8 +160,8 @@ fn print(w: anytype, name: []const u8, comptime T: type, comptime bits: bool) !v
     try w.writeAll("\n      }");
 }
 
-fn usageAndExit(cmd: []const u8) noreturn {
-    const err = std.io.getStdErr().writer();
-    err.print("Usage: {s} <markdown|protocol|layout>\n", .{cmd}) catch {};
+fn usageAndExit(io: std.Io, cmd: []const u8) noreturn {
+    var err = std.Io.File.stderr().writer(io, &.{});
+    err.interface.print("Usage: {s} <markdown|protocol|layout>\n", .{cmd}) catch {};
     std.process.exit(1);
 }
