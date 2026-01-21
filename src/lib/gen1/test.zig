@@ -10404,7 +10404,7 @@ test "transitions" {
     var discarding: std.Io.Writer.Discarding = .init(&.{});
     const writer = &discarding.writer;
     // const writer = std.io.getStdErr().writer();
-    _ = try calc.transitions(battle, move(1), move(1), allocator, writer, .{
+    _ = try calc.transitions(battle, move(1), move(1), allocator, writer, writer, .{
         .durations = Durations{},
         .seed = seed,
         .cap = true,
@@ -10504,6 +10504,7 @@ fn Test(comptime rolls: anytype) type {
                 c2,
                 &self.options,
                 allocator,
+                writer,
                 writer,
                 false,
             );

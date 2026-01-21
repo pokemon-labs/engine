@@ -49,7 +49,7 @@ fn bind(env: c.napi_env, gen: anytype) c.napi_value {
 
 fn update(gen: anytype) c.napi_callback {
     return struct {
-        fn call(env: c.napi_env, info: c.napi_callback_info) callconv(.C) c.napi_value {
+        fn call(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value {
             var argc: usize = 4;
             var argv: [4]c.napi_value = undefined;
             assert(c.napi_get_cb_info(env, info, &argc, &argv, null, null) == c.napi_ok);
@@ -91,7 +91,7 @@ fn update(gen: anytype) c.napi_callback {
 
 fn choices(gen: anytype) c.napi_callback {
     return struct {
-        fn call(env: c.napi_env, info: c.napi_callback_info) callconv(.C) c.napi_value {
+        fn call(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value {
             var argc: usize = 4;
             var argv: [4]c.napi_value = undefined;
             assert(c.napi_get_cb_info(env, info, &argc, &argv, null, null) == c.napi_ok);

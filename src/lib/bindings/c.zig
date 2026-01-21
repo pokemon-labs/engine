@@ -103,7 +103,7 @@ pub fn gen(comptime num: comptime_int) type {
         };
 
         const battle_options = struct {
-            stream: pkmn.protocol.Writer,
+            writer: pkmn.protocol.Writer,
             log: pkmn.protocol.FixedLog,
             chance: g.Chance(pkmn.Rational(f64)),
             calc: g.Calc,

@@ -261,19 +261,19 @@ pub fn build(b: *std.Build) !void {
         },
     };
 
-    var benchmark_config = tools;
-    benchmark_config.general.optimize = .ReleaseFast;
-    benchmark_config.general.strip = true;
-    const benchmark = try tool(b, "src/test/benchmark.zig", benchmark_config);
+    // var benchmark_config = tools;
+    // benchmark_config.general.optimize = .ReleaseFast;
+    // benchmark_config.general.strip = true;
+    // const benchmark = try tool(b, "src/test/benchmark.zig", benchmark_config);
 
-    var fuzz_config = tools;
-    fuzz_config.general.strip = false;
-    fuzz_config.tool.name = "fuzz";
-    const fuzz = try tool(b, "src/test/fuzz.zig", fuzz_config);
+    // var fuzz_config = tools;
+    // fuzz_config.general.strip = false;
+    // fuzz_config.tool.name = "fuzz";
+    // const fuzz = try tool(b, "src/test/fuzz.zig", fuzz_config);
 
     const analyze = try tool(b, "src/tools/analyze.zig", tools);
     const dump = try tool(b, "src/tools/dump.zig", tools);
-    const transitions = try tool(b, "src/tools/transitions.zig", tools);
+    // const transitions = try tool(b, "src/tools/transitions.zig", tools);
 
     // FIXME: serde randomly fails to build in some release configurations
     var hack = tools;
@@ -281,15 +281,15 @@ pub fn build(b: *std.Build) !void {
     const serde = try tool(b, "src/tools/serde.zig", hack);
 
     if (analyze) |t| b.step("analyze", "Run LLVM analysis tool").dependOn(&t.step);
-    if (benchmark) |t| b.step("benchmark", "Run benchmark code").dependOn(&t.step);
+    // if (benchmark) |t| b.step("benchmark", "Run benchmark code").dependOn(&t.step);
     if (dump) |t| b.step("dump", "Run protocol dump tool").dependOn(&t.step);
-    if (fuzz) |t| b.step("fuzz", "Run fuzz tester").dependOn(&t.step);
+    // if (fuzz) |t| b.step("fuzz", "Run fuzz tester").dependOn(&t.step);
     if (serde) |t| b.step("serde", "Run serialization/deserialization tool").dependOn(&t.step);
     b.step("test", "Run all tests").dependOn(&tests.step);
     b.step("tools", "Install tools").dependOn(&ToolsStep.create(b, &exes).step);
-    if (transitions) |t| {
-        b.step("transitions", "Visualize transitions algorithm search").dependOn(&t.step);
-    }
+    // if (transitions) |t| {
+    //     b.step("transitions", "Visualize transitions algorithm search").dependOn(&t.step);
+    // }
 }
 
 fn buildWasm(

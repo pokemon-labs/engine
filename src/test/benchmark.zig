@@ -3,13 +3,10 @@ const std = @import("std");
 
 const showdown = pkmn.options.showdown;
 
-pub fn main() !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(allocator);
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
     if (args.len < 3 or args.len > 5) usageAndExit(args[0]);
 
     const gen = std.fmt.parseUnsigned(u8, args[1], 10) catch

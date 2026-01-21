@@ -1226,13 +1226,7 @@ pub fn expectLog(
 ) !void {
     if (!enabled) return;
 
-    // XXX
-    // const color = if (std.process.hasEnvVarConstant("ZIG_DEBUG_COLOR"))
-    //     true
-    // else switch (std.io.tty.detectConfig(std.io.getStdErr())) {
-    //     .escape_codes => true,
-    //     else => false,
-    // };
+    // TODO: ziglang/zig#30833 - read from environment
     const color = true;
 
     expectEqualBytes(expected, actual, offset) catch |err| switch (err) {

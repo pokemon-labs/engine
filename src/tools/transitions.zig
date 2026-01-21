@@ -12,15 +12,12 @@ pub const pkmn_options = pkmn.Options{ .internal = true };
 
 const debug = false; // DEBUG
 
-pub fn main() !void {
+pub fn main(init: std.process.init) !void {
     std.debug.assert(pkmn.options.calc and pkmn.options.chance);
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer std.debug.assert(gpa.deinit() == .ok);
-    const allocator = gpa.allocator();
-
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    const arena = init.arena.allocator();
+    const allocator = init.gpa.allocator();
+    const args = try init.minimal.args.toSlice(arena);
     if (args.len < 2 or args.len > 3) usageAndExit(args[0]);
 
     var buf: [pkmn.LOGS_SIZE]u8 = undefined;

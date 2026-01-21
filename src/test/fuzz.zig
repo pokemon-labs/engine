@@ -26,13 +26,11 @@ const chance = pkmn.options.chance;
 
 const endian = builtin.cpu.arch.endian();
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer std.debug.assert(gpa.deinit() == .ok);
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const arena = init.arena.allocator();
+    const allocator = init.gpa.allocator();
+    const args = try init.minimal.args.toSlice(arena);
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
     if (args.len != 1 and (args.len < 3 or args.len > 5)) usageAndExit(args[0]);
 
     if (args.len > 1) {

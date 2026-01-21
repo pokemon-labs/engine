@@ -16,7 +16,7 @@ pub fn gen(comptime num: comptime_int) type {
             c1: pkmn.Choice,
             c2: pkmn.Choice,
             options_: ?[*]u8,
-        ) callconv(.C) pkmn.Result {
+        ) callconv(.c) pkmn.Result {
             return (if (options_) |o| result: {
                 const buf = @as([*]u8, @ptrCast(o))[0..g.LOGS_SIZE];
                 var writer: pkmn.protocol.Writer = .{ .buffer = buf };
@@ -35,7 +35,7 @@ pub fn gen(comptime num: comptime_int) type {
             player: u8,
             request: u8,
             buf: [*]u8,
-        ) callconv(.C) u8 {
+        ) callconv(.c) u8 {
             assert(player <= @field(@typeInfo(pkmn.Player), @tagName(.@"enum")).fields.len);
             assert(request <= @field(@typeInfo(pkmn.Choice.Type), @tagName(.@"enum")).fields.len);
 

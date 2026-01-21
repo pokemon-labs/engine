@@ -186,7 +186,8 @@ pub fn transitions(
     c1: Choice,
     c2: Choice,
     allocator: std.mem.Allocator,
-    writer: anytype,
+    out: *std.Io.Writer,
+    err: *std.Io.Writer,
     options: Options,
 ) !?Stats {
     var stats: Stats = .{};
@@ -230,7 +231,7 @@ pub fn transitions(
 
         var r: Rational(u256) = .{ .p = 0, .q = 1 };
 
-        try debug(writer, f, .{
+        try debug(out, f, .{
             .shape = true,
             .color = i,
             .bold = true,
@@ -304,7 +305,7 @@ pub fn transitions(
                 if (opts.chance.actions.matches(f)) {
                     if (!opts.chance.actions.relax().eql(a)) {
                         if (!summary) {
-                            try debug(writer, opts.chance.actions, .{
+                            try debug(out, opts.chance.actions, .{
                                 .p1_max = p1_max,
                                 .p2_max = p2_max,
                                 .color = i,
@@ -318,7 +319,7 @@ pub fn transitions(
                     }
 
                     if (!summary) {
-                        try debug(writer, opts.chance.actions, .{
+                        try debug(out, opts.chance.actions, .{
                             .p1_max = p1_max,
                             .p2_max = p2_max,
                             .color = i,
@@ -331,7 +332,7 @@ pub fn transitions(
                             acts.p1.damage = @intCast(p1d);
                             acts.p2.damage = @intCast(p2d);
                             if ((try seen.getOrPut(acts)).found_existing) {
-                                // err("already seen {}", .{acts}, options.seed);
+                                die(err, "already seen {}", .{acts}, options.seed);
                                 return error.TestUnexpectedResult;
                             }
                         }
@@ -348,21 +349,21 @@ pub fn transitions(
                     stats.saved += 1;
 
                     if (p.q < p.p) {
-                        // err("improper fraction {}", .{p}, options.seed);
+                        die(err, "improper fraction {}", .{p}, options.seed);
                         return error.TestUnexpectedResult;
                     }
                 } else {
                     if (!opts.chance.actions.matchesAny(frontier.items, i)) {
                         try frontier.append(allocator, opts.chance.actions);
 
-                        try debug(writer, opts.chance.actions, .{
+                        try debug(out, opts.chance.actions, .{
                             .p1_max = p1_max,
                             .p2_max = p2_max,
                             .dim = true,
                             .newline = false,
                         });
-                        try writer.writeAll(" → ");
-                        try debug(writer, opts.chance.actions, .{
+                        try out.writeAll(" → ");
+                        try debug(out, opts.chance.actions, .{
                             .shape = true,
                             .color = frontier.items.len - 1,
                             .dim = true,
@@ -370,7 +371,7 @@ pub fn transitions(
                             .indent = false,
                         });
                     } else if (!summary) {
-                        try debug(writer, opts.chance.actions, .{
+                        try debug(out, opts.chance.actions, .{
                             .p1_max = p1_max,
                             .p2_max = p2_max,
                             .dim = true,
@@ -385,15 +386,12 @@ pub fn transitions(
         }}}}}}}}}}}}}}}}}}}}}}}}}}}}
 
         assert(stats.saved > saved);
-        // TODO: ziglang/zig#22667
-        // const old = @hasDecl(std.fmt, "formatFloatDecimal");
-        // if (!old and @TypeOf(writer) != @TypeOf(std.io.null_writer)) {
-        //     try writer.print(
-        //         "    {} ({d:.2}%)\n  = ──────────\n    {} ({d:.2}%)\n\n",
-        //         .{r, 100 * @as(f128, @floatFromInt(r.p)) / @as(f128, @floatFromInt(r.q)),
-        //           p, 100 * @as(f128, @floatFromInt(p.p)) / @as(f128, @floatFromInt(p.q))},
-        //     );
-        // }
+        // TODO: LLVM - float_from_int from 'u256' without intrinsics
+        // try out.print(
+        //     "    {} ({d:.2}%)\n  = ──────────\n    {} ({d:.2}%)\n\n",
+        //     .{r, 100 * @as(f128, @floatFromInt(r.p)) / @as(f128, @floatFromInt(r.q)),
+        //         p, 100 * @as(f128, @floatFromInt(p.p)) / @as(f128, @floatFromInt(p.q))},
+        // );
 
     }
 
@@ -408,7 +406,7 @@ pub fn transitions(
 
     p.reduce();
     if (p.p != 1 or p.q != 1) {
-        // err("expected 1, found {}", .{p}, options.seed);
+        die(err, "expected 1, found {}", .{p}, options.seed);
         return error.TestExpectedEqual;
     }
 
@@ -421,7 +419,8 @@ pub fn update(
     c2: Choice,
     options: anytype,
     allocator: std.mem.Allocator,
-    writer: anytype,
+    out: *std.Io.Writer,
+    err: *std.Io.Writer,
     transition: bool,
 ) !Result {
     const durations = options.chance.durations;
@@ -454,7 +453,7 @@ pub fn update(
         // Ensure we can generate all transitions from the same original state
         // (we must change the battle's RNG from a FixedRNG to a PRNG because
         // the transitions function relies on RNG for discovery of states)
-        if (try transitions(unfix(original), c1, c2, allocator, writer, .{
+        if (try transitions(unfix(original), c1, c2, allocator, out, err, .{
             .durations = durations,
             .cap = true,
         })) |stats| try expect(stats.frontier <= MAX_FRONTIER);
@@ -503,7 +502,7 @@ fn expectEqualActions(expected: Actions, actual: Actions) !void {
         error.TestExpectedEqual => {
             std.debug.print("expected {}, found {}\n", .{ expected, actual });
             return e;
-        }
+        },
     };
 }
 
@@ -522,13 +521,11 @@ fn unfix(actual: anytype) data.Battle(data.PRNG) {
     };
 }
 
-// XXX
-// fn err(comptime fmt: []const u8, v: anytype, seed: ?u64) void {
-//     const w = std.io.getStdErr().writer();
-//     w.print(fmt, v) catch return;
-//     if (seed) |s| return w.print("{}\n", .{s}) catch return;
-//     return w.writeByte('\n') catch return;
-// }
+fn die(w: *std.Io.Writer, comptime fmt: []const u8, v: anytype, seed: ?u64) void {
+    w.print(fmt, v) catch return;
+    if (seed) |s| return w.print("{}\n", .{s}) catch return;
+    return w.writeByte('\n') catch return;
+}
 
 const Style = struct {
     shape: bool = false,
