@@ -1,26 +1,24 @@
+const builtin = @import("builtin");
 const pkmn = @import("pkmn");
 const std = @import("std");
 
 const gen1 = pkmn.gen1.helpers;
 
-pub fn main() !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(allocator);
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
-    if (args.len < 2) usageAndExit(args[0]);
+    var err = std.Io.File.stderr().writer(init.io, &.{});
+    if (args.len < 2) usageAndExit(&err.interface, args[0]);
 
     const gen = std.fmt.parseUnsigned(u8, args[1], 10) catch
-        errorAndExit("gen", args[1], args[0]);
-    if (gen < 1 or gen > 9) errorAndExit("gen", args[1], args[0]);
+        errorAndExit(&err.interface, "gen", args[1], args[0]);
+    if (gen < 1 or gen > 9) errorAndExit(&err.interface, "gen", args[1], args[0]);
     const seed = if (args.len > 2) std.fmt.parseUnsigned(u64, args[2], 10) catch
-        errorAndExit("seed", args[2], args[0]) else null;
+        errorAndExit(&err.interface, "seed", args[2], args[0]) else null;
 
-    const out = std.io.getStdOut();
-    var buf = std.io.bufferedWriter(out.writer());
-    var w = buf.writer();
+    var out = std.Io.File.stdout().writer(init.io, &.{});
+    var w = &out.interface;
 
     var prng = if (seed) |s| pkmn.PSRNG.init(s) else null;
     const battle = switch (gen) {
@@ -28,22 +26,19 @@ pub fn main() !void {
         else => unreachable,
     };
 
-    try w.writeStruct(battle);
-    try buf.flush();
+    try w.writeStruct(battle, builtin.cpu.arch.endian());
 
     const serialized = std.mem.toBytes(battle);
     const deserialized = std.mem.bytesToValue(@TypeOf(battle), &serialized);
     try std.testing.expectEqual(battle, deserialized);
 }
 
-fn errorAndExit(msg: []const u8, arg: []const u8, cmd: []const u8) noreturn {
-    const err = std.io.getStdErr().writer();
+fn errorAndExit(err: *std.Io.Writer, msg: []const u8, arg: []const u8, cmd: []const u8) noreturn {
     err.print("Invalid {s}: {s}\n", .{ msg, arg }) catch {};
-    usageAndExit(cmd);
+    usageAndExit(err, cmd);
 }
 
-fn usageAndExit(cmd: []const u8) noreturn {
-    const err = std.io.getStdErr().writer();
+fn usageAndExit(err: *std.Io.Writer, cmd: []const u8) noreturn {
     err.print("Usage: {s} <GEN> <SEED?>\n", .{cmd}) catch {};
     std.process.exit(1);
 }
