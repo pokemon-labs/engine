@@ -273,7 +273,7 @@ pub fn build(b: *std.Build) !void {
 
     const analyze = try tool(b, "src/tools/analyze.zig", tools);
     const dump = try tool(b, "src/tools/dump.zig", tools);
-    // const transitions = try tool(b, "src/tools/transitions.zig", tools);
+    const transitions = try tool(b, "src/tools/transitions.zig", tools);
 
     // FIXME: serde randomly fails to build in some release configurations
     var hack = tools;
@@ -287,9 +287,9 @@ pub fn build(b: *std.Build) !void {
     if (serde) |t| b.step("serde", "Run serialization/deserialization tool").dependOn(&t.step);
     b.step("test", "Run all tests").dependOn(&tests.step);
     b.step("tools", "Install tools").dependOn(&ToolsStep.create(b, &exes).step);
-    // if (transitions) |t| {
-    //     b.step("transitions", "Visualize transitions algorithm search").dependOn(&t.step);
-    // }
+    if (transitions) |t| {
+        b.step("transitions", "Visualize transitions algorithm search").dependOn(&t.step);
+    }
 }
 
 fn buildWasm(
