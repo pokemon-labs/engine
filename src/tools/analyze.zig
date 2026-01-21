@@ -5,49 +5,49 @@ const std = @import("std");
 
 const Tool = union(enum) { copies: usize, sizes };
 
-pub fn main() !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(allocator);
 
     var tool: Tool = undefined;
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
-    if (args.len < 2) usageAndExit(args[0]);
+    var err = std.Io.File.stderr().writer(init.io, &.{});
+    if (args.len < 2) usageAndExit(&err.interface, args[0]);
 
     if (std.mem.eql(u8, args[1], "copies")) {
-        if (args.len != 2) {
-            errorAndExit("copies only expects one optional argument", "", args[0]);
+        if (args.len > 2 and args.len != 3) {
+            errorAndExit(&err.interface, "copies only expects one optional argument", "", args[0]);
         }
-        const threshold = if (args.len == 3) try std.fmt.parseUnsigned(usize, args[1], 10) else 8;
+        const threshold = if (args.len == 3) try std.fmt.parseUnsigned(usize, args[2], 10) else 8;
         tool = .{ .copies = threshold };
     } else if (std.mem.eql(u8, args[1], "sizes")) {
         if (args.len != 2) {
-            errorAndExit("sizes does not take any further arguments", "", args[0]);
+            errorAndExit(&err.interface, "sizes does not take any further arguments", "", args[0]);
         }
         tool = .sizes;
     } else {
-        usageAndExit(args[0]);
+        usageAndExit(&err.interface, args[0]);
     }
 
-    const line_buffer = try allocator.alloc(u8, 1024 * 1024);
+    const in_buf = try allocator.alloc(u8, 1024 * 1024);
+    const out_buf = try allocator.alloc(u8, 4096);
     const function_buf = try allocator.alloc(u8, 4096);
 
-    const stdin = std.io.getStdIn();
-    var reader = std.io.bufferedReader(stdin.reader());
-    var in = reader.reader();
+    var stdin = std.Io.File.stdin().reader(init.io, in_buf);
+    var in = &stdin.interface;
 
-    const stdout = std.io.getStdOut();
-    var writer = std.io.bufferedWriter(stdout.writer());
-    defer writer.flush() catch {};
-    var out = writer.writer();
+    var stdout = std.Io.File.stdout().writer(init.io, out_buf);
+    var out = &stdout.interface;
 
     var current_function: ?[]const u8 = null;
     var current_function_size: usize = 0;
-    while (try in.readUntilDelimiterOrEof(line_buffer, '\n')) |line| {
+    while (try (in.takeDelimiterExclusive('\n') catch |e| switch (e) {
+        error.EndOfStream => null,
+        else => e,
+    })) |line| {
+        in.toss(1);
         if (std.mem.startsWith(u8, line, "define ")) {
             current_function = extractFunctionName(line, function_buf) orelse
-                errorAndExit("can't define parse line=", line, args[0]);
+                errorAndExit(&err.interface, "can't define parse line=", line, args[0]);
             continue;
         }
 
@@ -62,9 +62,9 @@ pub fn main() !void {
             }
             current_function_size += 1;
             if (tool == .copies) {
-                if (cut(line, "@llvm.memcpy")) |c| {
+                if (cut(line, "@llvm.memmove")) |c| {
                     const size = extractMemcpySize(c[1]) orelse
-                        errorAndExit("can't memcpy parse line=", line, args[0]);
+                        errorAndExit(&err.interface, "can't memcpy parse line=", line, args[0]);
                     if (size > tool.copies) {
                         try out.print("{s}: {} bytes memcpy\n", .{ function, size });
                     }
@@ -72,6 +72,7 @@ pub fn main() !void {
             }
         }
     }
+    try out.flush();
 }
 
 fn cut(haystack: []const u8, needle: []const u8) ?struct { []const u8, []const u8 } {
@@ -128,14 +129,12 @@ fn extractMemcpySize(memcpy_call: []const u8) ?u32 {
     return std.fmt.parseInt(u32, size_value, 10) catch null;
 }
 
-fn errorAndExit(msg: []const u8, arg: []const u8, cmd: []const u8) noreturn {
-    const err = std.io.getStdErr().writer();
+fn errorAndExit(err: *std.Io.Writer, msg: []const u8, arg: []const u8, cmd: []const u8) noreturn {
     err.print("{s}{s}\n", .{ msg, arg }) catch {};
-    usageAndExit(cmd);
+    usageAndExit(err, cmd);
 }
 
-fn usageAndExit(cmd: []const u8) noreturn {
-    const err = std.io.getStdErr().writer();
-    err.print("Usage: {s} <copies|size>\n", .{cmd}) catch {};
+fn usageAndExit(err: *std.Io.Writer, cmd: []const u8) noreturn {
+    err.print("Usage: {s} <copies|sizes>\n", .{cmd}) catch {};
     std.process.exit(1);
 }
