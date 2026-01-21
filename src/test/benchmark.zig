@@ -29,14 +29,11 @@ pub fn main(init: std.process.Init) !void {
 
     const seed = if (args.len > 3) std.fmt.parseUnsigned(u64, args[3], 0) catch
         errorAndExit(&err.interface,"seed", args[3], args[0]) else seed: {
-        // XXX
-        // const Random = if (@hasDecl(std, "Random")) std.Random else std.rand;
-        // var secret: [Random.DefaultCsprng.secret_seed_length]u8 = undefined;
-        // std.crypto.random.bytes(&secret);
-        // var csprng = Random.DefaultCsprng.init(secret);
-        // const random = csprng.random();
-        // break :seed random.int(usize);
-        break :seed 1234;
+        var secret: [std.Random.DefaultCsprng.secret_seed_length]u8 = undefined;
+        init.io.random(&secret);
+        var csprng = std.Random.DefaultCsprng.init(secret);
+        const random = csprng.random();
+        break :seed random.int(usize);
     };
 
     try benchmark(init.io, gen, seed, battles, warmup);
