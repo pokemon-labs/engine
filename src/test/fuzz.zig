@@ -284,17 +284,20 @@ fn dump(seed: u64) !void {
     }
     try stdout.interface.flush();
 
-    // Write the last state information to the logs/ directory if it
-    // exists so that it can easily be turned into a regression testcase
+    // Write the last state information to the logs/ directory
+    // so that it can easily be turned into a regression testcase
     var n: [1024]u8 = undefined;
     const ext = if (showdown) "showdown" else "pkmn";
     const name = try std.fmt.bufPrint(&n, "logs/0x{X}.{s}.bin", .{ seed, ext });
 
     const dir = std.Io.Dir.cwd();
+    dir.createDir(io, "logs", .default_dir) catch return;
+
     const file = dir.createFile(io, name, .{}) catch return;
     defer file.close(io);
     var w = file.writer(io, &buf);
     try display(&w.interface, true);
+    try w.flush();
 
     var p: [1024]u8 = undefined;
     const size = try file.realPath(io, &p);
