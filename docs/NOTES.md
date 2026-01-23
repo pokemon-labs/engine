@@ -63,3 +63,70 @@
 4. **Update Zig engine code** to cause the updated mechanics tests to pass
 5. **Update documentation** to match new behavior/bugs
 6. **Remove effects from blocklists** and helpers if necessary
+
+## Debugging Tests
+
+### Regression Tests
+
+When debugging a specific regression test, remove the logic from the final `catch` block of the `play` function in [`integration.ts`](../src/test/integration.ts) preventing replays from generating the [`logs/pkmn.html`](../logs/pkmn.html) and [`logs/showdown.html`](../logs/showdown.html) UIs:
+
+ ```diff
+-if (!replay) {
+ const num = toBigInt(seed);
+ const stack = err.stack.replace(ANSI, '');
+ errors?.seeds.push(num);
+ errors?.stacks.push(stack);
+ try {
+   console.error('');
+   dump(
+     gen,
+     stack,
+     num,
+     rawInputLog,
+     frames,
+     partial,
+   );
+ } catch (e) {
+   console.error(e);
+ }
+-}
+```
+
+### Specific errors
+
+#### Unexpected shuffle
+
+Modify `patch.battle` within [`showdown.ts`](../src/test/showdown.ts):
+
+ ```diff
+ battle: (battle: Battle, prng = false, debug = false) => {
+ +   const run = battle.runEvent.bind(battle);
+ +   battle.runEvent = (...args) => {
+ +     console.debug(args[0]);
+ +     return run(...args);
+ +   };
+ battle.trunc = battle.dex.trunc.bind(battle.dex);
+```
+After you have determined the problematic effects which speed tie you can assign them a priority in `patch.generation`.
+
+#### Mismatched seeds
+
+You can determine RNG advances in the engine by modifying the `Gen56` RNG within [`rng.zig`](src/lib/common/rng.zig) to log:
+
+```patch
+pub fn advance(self: *Gen56) void {
++    DEBUG(self.seed);
+    self.seed = 0x5D588B656C078965 *% self.seed +% 0x0000000000269EC3;
+}
+```
+
+Note that **the numbers printed here will not match the seeds from Pokémon Showdown** as they are in
+little-endian instead of Pokémon Showdown's big-endian convention. Alternatively, if you wish to see
+where the advances are occurring you can add debug prints to each of the `Rolls` at the bottom of
+the appropriate `mechanics.zig`:
+
+```diff
+pub const Rolls = struct {
+    fn speedTie(battle: anytype, options: anytype) !bool {
++      DEBUG(@src());
+ ```
