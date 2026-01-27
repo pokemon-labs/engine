@@ -8,6 +8,6 @@ import {run} from './integration';
 describe('integration', () => {
   (addon.supports(true, true) ? test : test.skip)('test', async () => {
     const gens = new Generations(Dex as any);
-    expect(await run(gens, {prng: '1,2,3,4'})).toBe(0);
+    expect(await run(gens, {prng: '1,2,3,4', replay: true})).toBe(0);
   });
 });

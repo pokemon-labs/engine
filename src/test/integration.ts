@@ -41,6 +41,7 @@ interface Frame {
 }
 
 type RunnerOptions = sim.RunnerOptions & {usage: sim.ExhaustiveRunnerUsageTracker; errors?: Errors};
+
 class Runner {
   private readonly gen: Generation;
   private readonly format: string;
@@ -67,7 +68,7 @@ class Runner {
     this.debug = !!debug;
   }
 
-  run() {
+  run(repeat: boolean) {
     // Generated a team which could result in a problematic scenario = skip &
     // try again! (note that validate marks used to ensure progress)
     if (this.skip) return Promise.resolve();
@@ -76,17 +77,26 @@ class Runner {
     const create = (o: sim.AIOptions) => (s: Streams.ObjectReadWriteStream<string>) =>
       o.createAI(s, {seed: newSeed(this.prng).join(',') as PRNGSeed, move: 0.7, mega: 0.6, ...o});
 
-    return Promise.resolve(play(
-      this.gen, {
-        formatid: this.format,
-        seed: seed.split(',').map(n => +n) as [number, number, number, number],
-      },
-      {spec: {name: 'Player 1', ...this.p1options}, create: create(this.p1options)},
-      {spec: {name: 'Player 2', ...this.p2options}, create: create(this.p2options)},
-      undefined,
-      this.debug,
-      this.errors,
-    ));
+    try {
+      const lines = play(
+        this.gen, {
+          formatid: this.format,
+          seed: seed.split(',').map(n => +n) as [number, number, number, number],
+        },
+        {spec: {name: 'Player 1', ...this.p1options}, create: create(this.p1options)},
+        {spec: {name: 'Player 2', ...this.p2options}, create: create(this.p2options)},
+        undefined,
+        this.debug,
+        this.errors,
+      );
+      if (!repeat) return Promise.resolve();
+
+      const replayed = replay(this.gen, lines);
+      assert.equal(lines.join('\n'), replayed.join('\n'));
+      return Promise.resolve();
+    } catch (err: unknown) {
+      return Promise.reject(err as Error);
+    }
   }
 }
 
@@ -240,7 +250,7 @@ function play(
         control.setPlayer('p2', p2options.spec);
       } else {
         control.makeChoices(adjust(engine.Choice.format(c1)), adjust(engine.Choice.format(c2)));
-        if (gen.num === 1 && problematic(control)) return;
+        if (gen.num === 1 && problematic(control)) return control.inputLog;
       }
 
       const request = partial.showdown.result = toResult(control, p1options.spec.name);
@@ -301,6 +311,15 @@ function play(
     }
     throw err;
   }
+  return control.inputLog;
+}
+
+function replay(gen: Generation, lines: string[]) {
+  const spec = JSON.parse(lines[0].slice(7)) as {formatid: string; seed: any};
+  if (!Array.isArray(spec.seed)) spec.seed = spec.seed.split(',').map((n: string) => +n);
+  const p1 = {spec: JSON.parse(lines[1].slice(10)) as {name: string; team: string}};
+  const p2 = {spec: JSON.parse(lines[2].slice(10)) as {name: string; team: string}};
+  return play(gen, spec, p1, p2, lines, true);
 }
 
 function toResult(battle: Battle, name: string) {
@@ -792,6 +811,7 @@ type Flags = Partial<Pick<sim.ExhaustiveRunnerOptions, 'log' | 'maxFailures' | '
   gen?: GenerationNum;
   duration?: number;
   debug?: boolean;
+  replay?: boolean;
 };
 
 export async function run(gens: Generations, options: string | Flags, errors?: Errors) {
@@ -800,13 +820,7 @@ export async function run(gens: Generations, options: string | Flags, errors?: E
     const log = fs.readFileSync(path.resolve(CWD, options), 'utf8');
     const gen = gens.get(log.charAt(23));
     patch.generation(gen);
-
-    const lines = log.split('\n');
-    const spec = JSON.parse(lines[0].slice(7)) as
-      {formatid: string; seed: [number, number, number, number]};
-    const p1 = {spec: JSON.parse(lines[1].slice(10)) as {name: string; team: string}};
-    const p2 = {spec: JSON.parse(lines[2].slice(10)) as {name: string; team: string}};
-    play(gen, spec, p1, p2, lines, true);
+    replay(gen, log.split('\n'));
     return 0;
   }
 
@@ -828,7 +842,7 @@ export async function run(gens: Generations, options: string | Flags, errors?: E
       opts.format = formatFor(gen);
       const d = (options).debug;
       failures += await (new sim.ExhaustiveRunner({...opts, runner: o =>
-        new Runner(gen, {...o, errors} as RunnerOptions, d).run(),
+        new Runner(gen, {...o, errors} as RunnerOptions, d).run(!!options.replay),
       }).run());
       if (failures >= opts.maxFailures!) return failures;
     }
@@ -893,8 +907,8 @@ if (require.main === module) {
       process.exit(await run(gens, fs.existsSync(file) ? file : process.argv[2]));
     }
     const argv = minimist(process.argv.slice(2), {
-      boolean: ['debug', 'summary'],
-      default: {maxFailures: 1, debug: true},
+      boolean: ['debug', 'summary', 'replay'],
+      default: {maxFailures: 1, debug: true, replay: false},
     });
 
     const unit =
