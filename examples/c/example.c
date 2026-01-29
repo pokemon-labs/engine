@@ -129,25 +129,12 @@ int main(int argc, char **argv)
       : battle.bytes[368] << 8 | battle.bytes[369];
 
    // The result is from the perspective of P1
-   switch (pkmn_result_type(result)) {
-      case PKMN_RESULT_WIN: {
-         printf("Battle won by Player A after %d turns\n", turns);
-         break;
-      }
-      case PKMN_RESULT_LOSE: {
-         printf("Battle won by Player B after %d turns\n", turns);
-         break;
-      }
-      case PKMN_RESULT_TIE: {
-         printf("Battle ended in a tie after %d turns\n", turns);
-         break;
-      }
-      case PKMN_RESULT_ERROR: {
-         printf("Battle encountered an error after %d turns\n", turns);
-         break;
-      }
-      default: assert(false);
-   }
-
+  const char* outcome[] = {
+      "won by Player A",
+      "won by Player B",
+      "ended in a tie",
+      "encountered an error"
+   };
+   printf("Battle %s after %d turns\n", outcome[pkmn_result_type(result) - 1], turns);
    return 0;
 }
