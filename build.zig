@@ -13,15 +13,13 @@ pub const Options = struct {
 };
 
 pub fn module(b: *std.Build, options: Options) *std.Build.Module {
-    const dirname = comptime std.fs.path.dirname(@src().file) orelse ".";
     const build_options = b.addOptions();
     build_options.addOption(?bool, "showdown", options.showdown);
     build_options.addOption(?bool, "log", options.log);
     build_options.addOption(?bool, "chance", options.chance);
     build_options.addOption(?bool, "calc", options.calc);
 
-    const root_source_file: std.Build.LazyPath =
-        .{ .cwd_relative = dirname ++ "/src/lib/pkmn.zig" };
+    const root_source_file = b.path("src/lib/pkmn.zig");
     const imports: []const std.Build.Module.Import =
         &.{.{ .name = "build_options", .module = build_options.createModule() }};
     return b.createModule(.{ .root_source_file = root_source_file, .imports = imports });
@@ -54,7 +52,7 @@ pub fn build(b: *std.Build) !void {
     defer parsed.deinit();
     const version = parsed.value.object.get("version").?.string;
     const description = parsed.value.object.get("description").?.string;
-    var repository = std.mem.splitSequence(u8, parsed.value.object.get("repository").?.string, ":");
+    var repository = std.mem.splitScalar(u8, parsed.value.object.get("repository").?.string, ':');
     std.debug.assert(std.mem.eql(u8, repository.first(), "github"));
 
     const showdown =
