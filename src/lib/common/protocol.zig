@@ -1226,8 +1226,7 @@ pub fn expectLog(
 ) !void {
     if (!enabled) return;
 
-    // TODO: ziglang/zig#30833 - read from environment
-    const color = true;
+    const color = detect();
 
     expectEqualBytes(expected, actual, offset) catch |err| switch (err) {
         error.TestExpectedEqual => {
@@ -1235,6 +1234,29 @@ pub fn expectLog(
             format(gen, actual, expected, color);
             return err;
         },
+    };
+}
+
+fn detect() bool {
+    const io = std.testing.io;
+    var env = std.testing.environ.createMap(std.testing.allocator) catch unreachable;
+    defer env.deinit();
+
+    const val = env.get("ZIG_DEBUG_COLOR");
+    if (val != null and val.?.len != 0) return true;
+
+    const NO_COLOR = std.zig.EnvVar.NO_COLOR.isSet(&env);
+    const CLICOLOR_FORCE = std.zig.EnvVar.CLICOLOR_FORCE.isSet(&env);
+
+    var stderr = std.Io.File.stderr().writer(io, &.{});
+    return switch (std.Io.Terminal.Mode.detect(
+        io,
+        stderr.file,
+        NO_COLOR,
+        CLICOLOR_FORCE,
+    ) catch unreachable) {
+        .escape_codes => true,
+        else => false,
     };
 }
 
