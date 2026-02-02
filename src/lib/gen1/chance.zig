@@ -119,18 +119,41 @@ test Actions {
 }
 
 /// Observation made about a duration - whether the duration has started, been continued, or ended.
-pub const Observation = enum { started, continuing, ended };
-/// An extension of Observation to account for "hidden" confusion.
-pub const Confusion = enum {
-    started,
-    continuing,
-    ended,
-    /// An indicator that an existing confusion duration has been overwritten by a new confusion
-    /// duration due to a Thrashing move ending. This is not immediately observable to an opponent,
-    /// to compute probabilities from an opponent's point of view based solely on public information
-    /// extra work must be done to correct for the information leak
-    overwritten,
-};
+pub fn Observation(comptime field: Duration.Field) type {
+    return switch (field) {
+        .attacking, .binding => enum(u2) {
+            started,
+            continuing,
+            ended,
+        },
+        .sleep, .disable => enum(u3) {
+            started,
+            continuing,
+            ended,
+            // TODO haze support
+            unused1,
+            unused2,
+            unused3,
+            unused4,
+        },
+        .confusion => enum(u4) {
+            started,
+            continuing,
+            ended,
+            /// An indicator that an existing confusion duration has been overwritten by a new
+            /// confusion duration due to a Thrashing move ending ("hidden" confusion). This is not
+            /// immediately observable to an opponent, to compute probabilities from an opponent's
+            /// point of view based solely on public information extra work must be done to correct
+            /// for the information leak
+            overwritten,
+            // TODO haze support
+            unused1,
+            unused2,
+            unused3,
+            unused4,
+        },
+    };
+}
 
 /// Information about the RNG that was observed during a Generation I battle `update` for a
 /// single player.
@@ -157,26 +180,24 @@ pub const Action = packed struct(u64) {
     duration: u4 = 0,
 
     /// TODO
-    sleep: Optional(Observation) = .None,
+    sleep: Optional(Observation(.sleep)) = .None,
     /// TODO
-    confusion: Optional(Confusion) = .None,
+    confusion: Optional(Observation(.confusion)) = .None,
     /// TODO
-    disable: Optional(Observation) = .None,
+    disable: Optional(Observation(.disable)) = .None,
     /// TODO
-    attacking: Optional(Observation) = .None,
+    attacking: Optional(Observation(.attacking)) = .None,
     /// TODO
-    binding: Optional(Observation) = .None,
-
-    _: u1 = 0,
+    binding: Optional(Observation(.binding)) = .None,
 
     /// If not 0, the move slot (1-4) to return in Rolls.moveSlot. If present as an override,
     /// invalid values (eg. due to empty move slots or 0 PP) will be ignored.
-    move_slot: u4 = 0,
+    move_slot: u3 = 0,
+    /// If not 0, the value (2-5) to return for Rolls.distribution for multi hit.
+    multi_hit: u3 = 0,
 
     /// TODO
     pp: u4 = 0,
-    /// If not 0, the value (2-5) to return for Rolls.distribution for multi hit.
-    multi_hit: u4 = 0,
 
     /// If not 0, psywave - 1 should be returned as the damage roll for Rolls.psywave.
     psywave: u8 = 0,
@@ -189,6 +210,8 @@ pub const Action = packed struct(u64) {
     pub fn format(a: Action, w: *std.Io.Writer) !void {
         try fmt(a, w, false);
     }
+
+    const SYMBOLS = [_][]const u8{ "+", "", "-", "#" };
 
     pub fn fmt(self: Action, writer: *std.Io.Writer, shape: bool) !void {
         try writer.writeByte('(');
@@ -205,13 +228,8 @@ pub const Action = packed struct(u64) {
                             if (val == .false) "!" else "",
                             field.name,
                         });
-                    } else if (@TypeOf(val) == Optional(Observation) or
-                        @TypeOf(val) == Optional(Confusion))
-                    {
-                        try writer.print("{s}{s}", .{
-                            ([_][]const u8{ "+", "", "-", "#" })[@intFromEnum(val) - 1],
-                            field.name,
-                        });
+                    } else if (@TypeOf(val) != Move and @TypeOf(val) != Optional(Player)) {
+                        try writer.print("{s}{s}", .{ SYMBOLS[@intFromEnum(val) - 1], field.name });
                     } else {
                         try writer.print("{s}:{s}", .{ field.name, @tagName(val) });
                     }
@@ -266,6 +284,8 @@ pub const Duration = packed struct(u32) {
     binding: u3 = 0,
 
     _: u1 = 0,
+
+    pub const Field = enum { attacking, binding, sleep, disable, confusion };
 
     pub fn format(
         self: Duration,
@@ -537,7 +557,7 @@ pub fn Chance(comptime Rational: type) type {
             self: *Self,
             comptime field: Action.Field,
             player: Player,
-            obs: Optional(Confusion),
+            obs: Optional(Observation(.confusion)),
         ) void {
             if (!enabled) return;
 
@@ -579,7 +599,7 @@ pub fn Chance(comptime Rational: type) type {
             }
         }
 
-        pub fn sleep(self: *Self, player: Player, obs: Optional(Observation)) Error!void {
+        pub fn sleep(self: *Self, player: Player, obs: Optional(Observation(.sleep))) Error!void {
             if (!enabled) return;
 
             var a = self.actions.get(player);
@@ -603,7 +623,11 @@ pub fn Chance(comptime Rational: type) type {
             }
         }
 
-        pub fn confusion(self: *Self, player: Player, obs: Optional(Confusion)) Error!void {
+        pub fn confusion(
+            self: *Self,
+            player: Player,
+            obs: Optional(Observation(.confusion)),
+        ) Error!void {
             if (!enabled) return;
 
             var a = self.actions.get(player);
@@ -625,7 +649,11 @@ pub fn Chance(comptime Rational: type) type {
             }
         }
 
-        pub fn disable(self: *Self, player: Player, obs: Optional(Observation)) Error!void {
+        pub fn disable(
+            self: *Self,
+            player: Player,
+            obs: Optional(Observation(.disable)),
+        ) Error!void {
             if (!enabled) return;
 
             var a = self.actions.get(player);
@@ -647,7 +675,11 @@ pub fn Chance(comptime Rational: type) type {
             }
         }
 
-        pub fn attacking(self: *Self, player: Player, obs: Optional(Observation)) Error!void {
+        pub fn attacking(
+            self: *Self,
+            player: Player,
+            obs: Optional(Observation(.attacking)),
+        ) Error!void {
             if (!enabled) return;
 
             var a = self.actions.get(player);
@@ -669,7 +701,11 @@ pub fn Chance(comptime Rational: type) type {
             }
         }
 
-        pub fn binding(self: *Self, player: Player, obs: Optional(Observation)) Error!void {
+        pub fn binding(
+            self: *Self,
+            player: Player,
+            obs: Optional(Observation(.binding)),
+        ) Error!void {
             if (!enabled) return;
 
             var a = self.actions.get(player);
@@ -879,13 +915,13 @@ test "Chance.moveSlot" {
 
     try chance.moveSlot(.P2, 2, &ms, 2);
     try expectProbability(&chance.probability, 1, 2);
-    try expectValue(@as(u4, 2), chance.actions.p2.move_slot);
+    try expectValue(@as(u3, 2), chance.actions.p2.move_slot);
 
     chance.reset();
 
     try chance.moveSlot(.P1, 1, &ms, 0);
     try expectProbability(&chance.probability, 1, 3);
-    try expectValue(@as(u4, 1), chance.actions.p1.move_slot);
+    try expectValue(@as(u3, 1), chance.actions.p1.move_slot);
 }
 
 test "Chance.multiHit" {
@@ -1130,28 +1166,44 @@ const Null = struct {
         self: Null,
         comptime field: Action.Field,
         player: Player,
-        obs: Optional(Confusion),
+        obs: Optional(Observation(.confusion)),
     ) void {
         _ = .{ self, field, player, obs };
     }
 
-    pub fn sleep(self: Null, player: Player, obs: Optional(Observation)) Error!void {
+    pub fn sleep(self: Null, player: Player, obs: Optional(Observation(.sleep))) Error!void {
         _ = .{ self, player, obs };
     }
 
-    pub fn confusion(self: Null, player: Player, obs: Optional(Confusion)) Error!void {
+    pub fn confusion(
+        self: Null,
+        player: Player,
+        obs: Optional(Observation(.confusion)),
+    ) Error!void {
         _ = .{ self, player, obs };
     }
 
-    pub fn disable(self: Null, player: Player, obs: Optional(Observation)) Error!void {
+    pub fn disable(
+        self: Null,
+        player: Player,
+        obs: Optional(Observation(.disable)),
+    ) Error!void {
         _ = .{ self, player, obs };
     }
 
-    pub fn attacking(self: Null, player: Player, obs: Optional(Observation)) Error!void {
+    pub fn attacking(
+        self: Null,
+        player: Player,
+        obs: Optional(Observation(.attacking)),
+    ) Error!void {
         _ = .{ self, player, obs };
     }
 
-    pub fn binding(self: Null, player: Player, obs: Optional(Observation)) Error!void {
+    pub fn binding(
+        self: Null,
+        player: Player,
+        obs: Optional(Observation(.binding)),
+    ) Error!void {
         _ = .{ self, player, obs };
     }
 
