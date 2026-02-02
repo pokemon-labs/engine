@@ -11,9 +11,9 @@ pub fn Optional(comptime T: type) type {
         else => T,
     });
 
-    const tagType = std.math.IntFittingRange(0, fields.len);
+    const TagType = std.math.IntFittingRange(0, fields.len);
     var fieldNames: [fields.len + 1][]const u8 = undefined;
-    var fieldValues: [fields.len + 1]tagType = undefined;
+    var fieldValues: [fields.len + 1]TagType = undefined;
 
     fieldNames[0] = "None";
     fieldValues[0] = 0;
@@ -24,7 +24,7 @@ pub fn Optional(comptime T: type) type {
         fieldValues[i] = i;
     }
 
-    return @Enum(tagType, .exhaustive, &fieldNames, &fieldValues);
+    return @Enum(TagType, .exhaustive, &fieldNames, &fieldValues);
 }
 
 test Optional {
