@@ -59,7 +59,7 @@ pub fn main(init: std.process.Init) !void {
             break :seed random.int(usize);
         };
 
-        try fuzz(allocator, seed, duration);
+        try fuzz(init.io, allocator, seed, duration);
     } else {
         var in: [4096]u8 = undefined;
         var stdin = std.Io.File.stdin().reader(init.io, &in);
@@ -114,15 +114,15 @@ pub fn main(init: std.process.Init) !void {
     }
 }
 
-pub fn fuzz(allocator: std.mem.Allocator, seed: u64, duration: usize) !void {
+pub fn fuzz(io: std.Io, allocator: std.mem.Allocator, seed: u64, duration: usize) !void {
     std.debug.assert(gen >= 1 and gen <= 9);
 
     const save = pkmn.options.log and builtin.mode == .Debug;
 
     var random = pkmn.PSRNG.init(seed);
 
-    var elapsed = try std.time.Timer.start();
-    while (elapsed.read() < duration) {
+    var elapsed = std.Io.Clock.awake.now(io);
+    while (elapsed.untilNow(io, .awake).toNanoseconds() < duration) {
         last = random.src.seed;
 
         const cleric = showdown;

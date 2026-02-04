@@ -75,7 +75,7 @@ pub fn benchmark(io: std.Io, gen: u8, seed: u64, battles: usize, warmup: ?usize)
         var p1 = pkmn.PSRNG.init(random.newSeed());
         var p2 = pkmn.PSRNG.init(random.newSeed());
 
-        var timer = try std.time.Timer.start();
+        var timer = std.Io.Clock.awake.now(io);
 
         var result = try battle.update(c1, c2, &options);
         while (result.type == .None) : (result = try battle.update(c1, c2, &options)) {
@@ -87,7 +87,7 @@ pub fn benchmark(io: std.Io, gen: u8, seed: u64, battles: usize, warmup: ?usize)
             c2 = choices[p2.range(u8, 0, n)];
         }
 
-        const t = timer.read();
+        const t: u64 = @intCast(timer.untilNow(io, .awake).toNanoseconds());
         std.debug.assert(!showdown or result.type != .Error);
 
         if (i >= w) {
