@@ -27,6 +27,11 @@ This directory contains miscellaneous scripts and tools useful for working on th
 
       $ npm run debug <file> > index.html
 
+  Finally, a `--json` flag is also supporrted and causes the decoded data to be dumped as JSON
+  instead of HTML:
+
+      $ npm run debug --json <file> > index.json
+
 - [`demo.ts`](demo.ts): TODO
 
       $ npm run --silent demo -- <GEN> > index.html

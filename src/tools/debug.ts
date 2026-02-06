@@ -39,7 +39,8 @@ export function render(
   gens: Generation | Generations,
   buffer: Buffer,
   err?: string,
-  seed?: bigint
+  seed?: bigint,
+  json?: boolean
 ) {
   if (!buffer.length) throw new Error('Invalid input');
 
@@ -65,8 +66,18 @@ export function render(
       default: throw new Error(`Unsupported gen: ${gen.num}`);
     }
   };
-  const battle = deserialize(buffer.subarray(offset, offset += size));
 
+  if (json) {
+    return JSON.stringify({
+      seed: seed?.toString(),
+      err: err && error(err),
+      showdown,
+      data: display.parse(gen, view, (partial, _, __, last) =>
+        ({state: last, ...partial})),
+    });
+  }
+
+  const battle = deserialize(buffer.subarray(offset, offset += size));
   return display.render(path.join(ROOT, 'build', 'tools', 'display', 'debug.jsx'), {
     gen: display.prune(gen, battle),
     buf: buffer.toString('base64'),
@@ -76,6 +87,15 @@ export function render(
 }
 
 export async function run(gens: Generations) {
+  let json = false;
+  for (let i = 0; i < process.argv.length; i++) {
+    if (process.argv[i] === '--json') {
+      json = true;
+      process.argv.splice(i, 0);
+      break;
+    }
+  }
+
   let input;
   if (process.argv.length > 2) {
     if (process.argv.length > 3) {
@@ -92,7 +112,8 @@ export async function run(gens: Generations) {
     }
     input = Buffer.concat(result, length);
   }
-  process.stdout.write(render(gens, input));
+
+  process.stdout.write(render(gens, input, undefined, undefined, json));
 }
 
 if (require.main === module) {

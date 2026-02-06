@@ -18,17 +18,20 @@ import {PlayerOptions} from '.';
 const ArgType = PROTOCOL.ArgType;
 
 // Minimal subset of the @pkmn/data Generation API
-interface Generation {
+export interface Generation {
   num: GenerationNum;
   species: {
     get(id: ID): {
+      num: number;
       name: SpeciesName;
       genderRatio: {M: number; F: number};
       gender?: GenderName;
     } | undefined;
+    [Symbol.iterator](): Generator<{id: ID; num: number}, void>;
   };
   moves: {
-    get(id: ID): {name: MoveName} | undefined;
+    get(id: ID): {num: number; name: MoveName} | undefined;
+    [Symbol.iterator](): Generator<{id: ID; num: number}, void>;
   };
 }
 

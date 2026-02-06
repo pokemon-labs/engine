@@ -66,10 +66,17 @@ export async function run(
 
     seed = LE ? stdout.readBigUInt64LE(0) : stdout.readBigUInt64BE(0);
     const hex = `0x${seed.toString(16).toUpperCase()}`;
-    const file = path.join(dir, `${hex}.fuzz.html`);
-    const link = path.join(dir, 'fuzz.html');
+    let file = path.join(dir, `${hex}.fuzz.html`);
+    let link = path.join(dir, 'fuzz.html');
 
     fs.writeFileSync(file, debug.render(gens, stdout.subarray(8), raw.slice(panic), seed));
+    fs.rmSync(link, {force: true});
+    fs.symlinkSync(file, link);
+
+    file = path.join(dir, `${hex}.fuzz.json`);
+    link = path.join(dir, 'fuzz.json');
+
+    fs.writeFileSync(file, debug.render(gens, stdout.subarray(8), raw.slice(panic), seed, true));
     fs.rmSync(link, {force: true});
     fs.symlinkSync(file, link);
 

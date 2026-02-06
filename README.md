@@ -329,6 +329,13 @@ instead:
 $ pkmn-debug <file> > index.html
 ```
 
+Finally, `pkmn-debug` also supports a `--json` flag which causes the decoded data to be dumped as
+JSON instead of HTML:
+
+```sh
+$ pkmn-debug --json <file> > index.json
+```
+
 ## Status
 
 The engine is currently expected to be developed over multiple stages:
