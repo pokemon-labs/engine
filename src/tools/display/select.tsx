@@ -15,8 +15,8 @@ export const Select = ({options, unmount, placeholder, render}: {
     name='select'
     className='select'
     autoComplete='off'
-    placeholder={placeholder} /> as any as HTMLInputElement;
-  const container = <div className='select options' />;
+    placeholder={placeholder} /> as HTMLInputElement;
+  const container = <div className='select options' /> as HTMLDivElement;
 
   render ||= option => input.value
     // ? <span dangerouslySetInnerHTML={{__html: searcher.highlight(option)}}></span>
@@ -73,11 +73,11 @@ export const Select = ({options, unmount, placeholder, render}: {
     const val = input.value;
     cache[val] = data;
     if (data.length) {
-      const children: JSX.Element[] = [];
+      const children: Node[] = [];
       for (const option of data) {
         children.push(<div className='select option' data-value={option}>
           {render(option, val)}
-        </div>);
+        </div> as HTMLElement);
       }
       container.replaceChildren(...children);
       console.debug('suggest');
@@ -87,7 +87,7 @@ export const Select = ({options, unmount, placeholder, render}: {
     }
   };
 
-  const live = (e: MouseEvent, cls: string) => {
+  const live = (e: Event, cls: string) => {
     let found = false;
     let element = e.target as HTMLElement | null;
     while (element && !(found = element.classList.contains(cls))) element = element.parentElement;
@@ -97,7 +97,7 @@ export const Select = ({options, unmount, placeholder, render}: {
   container.addEventListener('mouseleave', e => {
     if (!live(e, '.option')) return;
     console.debug('mouseleave');
-    const selected = container.querySelector('.select.option.selected');
+    const selected = container.querySelector('.select.option.selected') as HTMLElement;
     if (selected) setTimeout(() => selected.classList.remove('selected'), FRAME_MS);
   });
 
@@ -105,7 +105,7 @@ export const Select = ({options, unmount, placeholder, render}: {
     const element = live(e, '.option');
     if (!element) return;
     console.debug('mouseover');
-    const selected = container.querySelector('.select.option.selected');
+    const selected = container.querySelector('.select.option.selected') as HTMLElement;
     if (selected) setTimeout(() => selected.classList.remove('selected'), FRAME_MS);
     element.classList.add('selected');
   });

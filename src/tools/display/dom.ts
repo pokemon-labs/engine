@@ -1,23 +1,18 @@
 /** @license MIT modified from Vadim Demedes's https://github.com/vadimdemedes/dom-chef */
-type Attributes = JSX.IntrinsicElements['div'];
-type DocumentFragmentFunction = (props?: any) => DocumentFragment;
-type ElementFunction = (props?: any) => HTMLElement;
 
 declare global {
   namespace JSX {
-    interface Element extends HTMLElement, DocumentFragment {
-      addEventListener: HTMLElement['addEventListener'];
-      removeEventListener: HTMLElement['removeEventListener'];
-      className: HTMLElement['className'];
+    type Element = HTMLElement | DocumentFragment;
+    interface IntrinsicElements {
+      [elemName: string]: Record<string, unknown>;
     }
   }
 }
 
-interface JSXElementClassDocumentFragment extends DocumentFragment, JSX.ElementClass { }
-interface Fragment {
-  prototype: JSXElementClassDocumentFragment;
-  new(): JSXElementClassDocumentFragment;
-}
+type Child = Node | string | number | boolean | null | undefined | Child[];
+
+type DocumentFragmentFunction = (props?: any) => DocumentFragment;
+type ElementFunction = (props?: any) => HTMLElement;
 
 // https://github.com/preactjs/preact/blob/1bbd687c/src/constants.js#L3
 const IS_NON_DIMENSIONAL = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i;
@@ -38,14 +33,14 @@ const setAttribute = (element: HTMLElement, name: string, value: string) => {
   if (value !== undefined && value !== null) element.setAttribute(name, value);
 };
 
-const addChildren = (parent: Element | DocumentFragment, children: Node[]) => {
+const addChildren = (parent: Node, children: Child[]) => {
   for (const child of children) {
     if (child instanceof Node) {
       parent.appendChild(child);
     } else if (Array.isArray(child)) {
       addChildren(parent, child);
     } else if (typeof child !== 'boolean' && typeof child !== 'undefined' && child !== null) {
-      parent.appendChild(document.createTextNode(child));
+      parent.appendChild(document.createTextNode(String(child)));
     }
   }
 };
@@ -53,20 +48,40 @@ const addChildren = (parent: Element | DocumentFragment, children: Node[]) => {
 // https://github.com/facebook/react/blob/3f899089/packages/react-dom/src/shared/DOMProperty.js#L288-L322
 const FALSIFIABLE_ATTRIBUTES = ['contentEditable', 'draggable', 'spellCheck', 'value'];
 
-export const h = (
+export function h<K extends keyof HTMLElementTagNameMap>(
+  type: K,
+  attributes?: any,
+  ...children: Child[]
+): HTMLElementTagNameMap[K];
+export function h(
+  type: DocumentFragmentFunction,
+  attributes?: any,
+  ...children: Child[]
+): DocumentFragment;
+export function h<T extends HTMLElement>(
+  type: (props: any) => T,
+  attributes?: any,
+  ...children: Child[]
+): T;
+export function h(
+  type: string,
+  attributes?: any,
+  ...children: Child[]
+): HTMLElement;
+export function h(
   type: DocumentFragmentFunction | ElementFunction | string,
-  attributes?: Attributes,
-  ...children: Node[]
-) => {
+  attributes?: any,
+  ...children: Child[]
+): JSX.Element {
   if (typeof type !== 'string') {
     const element = type(attributes);
     addChildren(element, children);
-    return element;
+    return element as JSX.Element;
   }
 
   const element = document.createElement(type);
   addChildren(element, children);
-  if (!attributes) return element;
+  if (!attributes) return element as JSX.Element;
 
   for (let [name, value] of Object.entries(attributes)) {
     if (name === 'htmlFor') name = 'for';
@@ -75,19 +90,19 @@ export const h = (
       const existingClassname = element.getAttribute('class') ?? '';
       setAttribute(element, 'class', (existingClassname + ' ' + String(value)).trim());
     } else if (name === 'style') {
-      setCSSProps(element, value);
+      setCSSProps(element, value as CSSStyleDeclaration);
     } else if (name.startsWith('on')) {
       const eventName = name.slice(2).toLowerCase().replace(/^-/, '');
-      element.addEventListener(eventName, value);
-    } else if (name === 'dangerouslySetInnerHTML' && '__html' in value) {
-      element.innerHTML = value.__html;
+      element.addEventListener(eventName, value as EventListenerOrEventListenerObject);
+    } else if (name === 'dangerouslySetInnerHTML' && value && (value as any).__html) {
+      element.innerHTML = (value as any).__html;
     } else if (name !== 'key' && (FALSIFIABLE_ATTRIBUTES.includes(name) || value !== false)) {
-      setAttribute(element, name, value === true ? '' : value);
+      setAttribute(element, name, value === true ? '' : String(value));
     }
   }
 
-  return element;
-};
+  return element as JSX.Element;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const Fragment = (unused: any) => document.createDocumentFragment();
+export const Fragment = (unused?: any) => document.createDocumentFragment();

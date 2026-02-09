@@ -3,6 +3,7 @@ import * as adaptable from '@pkmn/img/adaptable';
 
 import * as engine from '../../pkg';
 
+import {Fragment} from './dom';
 import * as util from './util';
 
 declare const Sprites: adaptable.Sprites;
@@ -301,7 +302,7 @@ const HPBar = ({pokemon, last}: {
 };
 
 export const Status = ({pokemon}: {pokemon: engine.Data<engine.Pokemon>}) => {
-  if (!pokemon.status) return '';
+  if (!pokemon.status) return <></>;
   const classes = `status ${pokemon.status === 'tox' ? 'psn' : pokemon.status}`;
   let title = '';
   if (pokemon.statusData.sleep) title += `Sleep: ${pokemon.statusData.sleep}`;
