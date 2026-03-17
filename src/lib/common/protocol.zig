@@ -1248,7 +1248,7 @@ fn detect() bool {
     const NO_COLOR = std.zig.EnvVar.NO_COLOR.isSet(&env);
     const CLICOLOR_FORCE = std.zig.EnvVar.CLICOLOR_FORCE.isSet(&env);
 
-    var stderr = std.Io.File.stderr().writer(io, &.{});
+    const stderr = std.Io.File.stderr().writer(io, &.{});
     return switch (std.Io.Terminal.Mode.detect(
         io,
         stderr.file,
